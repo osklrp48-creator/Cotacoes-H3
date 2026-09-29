@@ -164,8 +164,8 @@ const MENSAGENS: Record<number, string> = {
   404: 'Não encontrado.',
   413: 'Arquivo grande demais.',
   500: 'Erro no servidor. Tente novamente em instantes.',
-  502: 'Servidor indisponível. Tente novamente em instantes.',
-  503: 'Serviço indisponível no momento.',
+  502: 'O servidor está reiniciando ou acordando (pode ser uma atualização em andamento). Aguarde 1 ou 2 minutos e tente de novo.',
+  503: 'O servidor está reiniciando ou acordando. Aguarde 1 ou 2 minutos e tente de novo.',
   504: 'O servidor demorou para responder. Tente novamente.',
 }
 
