@@ -397,8 +397,132 @@ function UsoIA() {
   )
 }
 
+/* ---------------- Importar dados antigos ---------------- */
+interface ResumoImportacao {
+  simulado: boolean
+  importados: number
+  ja_existentes: number
+  ignorados: number
+  itens: number
+  fornecedores: number
+  avisos: string[]
+}
+
+function Importar() {
+  const avisar = useAvisar()
+  const confirmar = useConfirmar()
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [unidadeId, setUnidadeId] = useState('')
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [resumo, setResumo] = useState<ResumoImportacao | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    api<Unidade[]>('/unidades').then(setUnidades).catch(() => {})
+  }, [])
+
+  async function enviar(simular: boolean) {
+    if (!arquivo || !unidadeId) return
+    if (!simular) {
+      const unidade = unidades.find((u) => String(u.id) === unidadeId)?.nome
+      const ok = await confirmar({
+        titulo: 'Importar de verdade?',
+        mensagem: `Os registros serão gravados na unidade "${unidade}". Registros já importados antes são pulados.`,
+        sim: 'Importar',
+        nao: 'Cancelar',
+      })
+      if (!ok) return
+    }
+    const corpo = new FormData()
+    corpo.append('arquivo', arquivo)
+    corpo.append('unidade_id', unidadeId)
+    corpo.append('simular', simular ? 'true' : 'false')
+    setErro('')
+    setEnviando(true)
+    try {
+      const r = await api<ResumoImportacao>('/admin/importar', { metodo: 'POST', corpo })
+      setResumo(r)
+      if (!simular) avisar(`Importação concluída: ${r.importados} registro(s).`)
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="cartao">
+      <h2>Importar dados antigos (cotacoes-export.json)</h2>
+      <p className="fraco" style={{ marginTop: 0 }}>
+        Primeiro clique em <strong>Simular</strong> para ver o resultado sem gravar nada. Se estiver certo, clique em <strong>Importar de verdade</strong>.
+        Pode repetir sem medo: registros já importados são pulados.
+      </p>
+      <div className="grade">
+        <label className="campo">
+          <span>Arquivo .json</span>
+          <input
+            type="file"
+            accept=".json,application/json"
+            onChange={(e) => {
+              setArquivo(e.target.files?.[0] ?? null)
+              setResumo(null)
+            }}
+          />
+        </label>
+        <label className="campo">
+          <span>Unidade dos registros</span>
+          <select
+            value={unidadeId}
+            onChange={(e) => {
+              setUnidadeId(e.target.value)
+              setResumo(null)
+            }}
+          >
+            <option value="">Selecione…</option>
+            {unidades.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {erro && <div className="alerta alerta-erro">{erro}</div>}
+      <div className="acoes" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+        <button className="btn" disabled={!arquivo || !unidadeId || enviando} onClick={() => enviar(true)}>
+          {enviando ? 'Enviando…' : 'Simular'}
+        </button>
+        <button className="btn btn-primario" disabled={!arquivo || !unidadeId || enviando || !resumo?.simulado} onClick={() => enviar(false)}>
+          Importar de verdade
+        </button>
+      </div>
+      {resumo && (
+        <div className={`alerta ${resumo.simulado ? 'alerta-ia' : 'alerta-ok'}`} style={{ marginTop: 14 }}>
+          <strong>{resumo.simulado ? 'Simulação (nada foi gravado)' : 'Importação concluída'}</strong>
+          <div>Registros {resumo.simulado ? 'que serão importados' : 'importados'}: {resumo.importados}</div>
+          <div>Itens: {resumo.itens}</div>
+          <div>Já importados antes (pulados): {resumo.ja_existentes}</div>
+          <div>Ignorados por erro: {resumo.ignorados}</div>
+          <div>Fornecedores do cadastro: {resumo.fornecedores}</div>
+          {resumo.avisos.length > 0 && (
+            <details style={{ marginTop: 6 }}>
+              <summary>{resumo.avisos.length} aviso(s)</summary>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {resumo.avisos.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Admin() {
-  const [aba, setAba] = useState<'unidades' | 'usuarios' | 'ia'>('unidades')
+  const [aba, setAba] = useState<'unidades' | 'usuarios' | 'ia' | 'importar'>('unidades')
   return (
     <>
       <div className="cabecalho">
@@ -414,10 +538,14 @@ export default function Admin() {
         <button role="tab" aria-selected={aba === 'ia'} className={aba === 'ia' ? 'ativo' : ''} onClick={() => setAba('ia')}>
           Uso da IA
         </button>
+        <button role="tab" aria-selected={aba === 'importar'} className={aba === 'importar' ? 'ativo' : ''} onClick={() => setAba('importar')}>
+          Importar dados
+        </button>
       </div>
       {aba === 'unidades' && <Unidades />}
       {aba === 'usuarios' && <Usuarios />}
       {aba === 'ia' && <UsoIA />}
+      {aba === 'importar' && <Importar />}
     </>
   )
 }

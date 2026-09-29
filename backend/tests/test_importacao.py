@@ -55,3 +55,39 @@ def test_simulacao_nao_grava(db, usuarios, unidades):
     resumo = importar_dados(db, EXPORT, matriz.id, simular=True)
     assert resumo.importados == 2
     assert db.query(Registro).count() == 0
+
+
+def test_importar_pela_tela_admin(admin, cliente, unidades, db):
+    import json as _json
+
+    _, filial = unidades
+    arquivo = ("cotacoes-export.json", _json.dumps(EXPORT).encode(), "application/json")
+    r = admin.post("/api/admin/importar", files={"arquivo": arquivo}, data={"unidade_id": filial.id, "simular": "true"})
+    assert r.status_code == 200, r.text
+    assert r.json()["importados"] == 2 and r.json()["simulado"] is True
+    assert db.query(Registro).count() == 0
+
+    r = admin.post("/api/admin/importar", files={"arquivo": arquivo}, data={"unidade_id": filial.id, "simular": "false"})
+    assert r.json()["importados"] == 2
+    assert db.query(Registro).count() == 2
+    assert {x.usuario.nome for x in db.query(Registro)} == {"Ana Admin"}
+
+    r = admin.post("/api/admin/importar", files={"arquivo": ("x.json", b"nao e json", "application/json")}, data={"unidade_id": filial.id})
+    assert r.status_code == 422 and "JSON" in r.json()["detail"]
+    assert cliente.post("/api/admin/importar", files={"arquivo": arquivo}, data={"unidade_id": filial.id}).status_code == 403
+
+
+def test_admin_inicial_por_variaveis(db, monkeypatch):
+    from app.cli import criar_admin_inicial
+    from app.models import Usuario
+
+    monkeypatch.setenv("ADMIN_EMAIL", "Chefe@H3.com.br")
+    monkeypatch.setenv("ADMIN_SENHA", "senha-forte-123")
+    monkeypatch.setenv("ADMIN_UNIDADE", "Matriz")
+    assert criar_admin_inicial() == 0
+    admin = db.query(Usuario).one()
+    assert (admin.email, admin.perfil, admin.unidade.nome) == ("chefe@h3.com.br", "admin", "Matriz")
+    # Rodar de novo (a cada reinício do servidor) não cria outro.
+    monkeypatch.setenv("ADMIN_EMAIL", "outro@h3.com.br")
+    criar_admin_inicial()
+    assert db.query(Usuario).count() == 1

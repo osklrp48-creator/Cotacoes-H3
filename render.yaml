@@ -15,6 +15,15 @@ services:
         generateValue: true
       - key: COOKIE_SECURE
         value: "true"
+      # Primeiro admin, criado automaticamente na primeira vez que o sistema sobe (banco vazio).
+      - key: ADMIN_NOME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_SENHA
+        sync: false
+      - key: ADMIN_UNIDADE
+        value: Matriz
       - key: IA_PROVEDOR
         value: gemini
       - key: GEMINI_API_KEY

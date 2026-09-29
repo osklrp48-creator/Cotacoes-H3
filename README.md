@@ -113,21 +113,24 @@ Os testes cobrem:
 - importação
 - rota de IA com o Gemini e a Anthropic **mockados**: texto, PDF, imagem, .docx com tabelas, .xlsx com várias abas, CSV, recusa de `.doc`, limite de tamanho, erros em português e registro de uso
 
-## 5. Colocar no ar (sugestão: Render)
+## 5. Colocar no ar (sugestão: Render) — sem instalar nada
 
-O [Render](https://render.com) é uma opção simples: um **Web Service** (Docker) roda API e site juntos, e um **PostgreSQL** gerenciado guarda os dados. O repositório já tem o `render.yaml`.
+O [Render](https://render.com) roda o sistema na nuvem: um **Web Service** (Docker) com API e site juntos e um **PostgreSQL** gerenciado. Tudo é feito pelo navegador; não precisa de Docker nem de terminal no seu computador.
 
-1. Suba o código para o GitHub.
-2. No Render, vá em **New → Blueprint**, escolha o repositório e confirme. O Render cria o banco e o serviço. Confira os planos e preços na hora de criar; para uso interno, os menores planos pagos bastam. Evite o banco gratuito, que expira.
-3. No serviço `cotacoes-h3`, em **Environment**, preencha `GEMINI_API_KEY`. O `SECRET_KEY` é gerado automaticamente e `COOKIE_SECURE=true` já vem definido.
-4. Depois do primeiro deploy, crie o admin e importe os dados de um destes jeitos:
-   - pela aba **Shell** do serviço no Render: `python -m app.cli criar-admin ...`
-   - ou do seu computador, apontando para o banco do Render. Copie a *External Database URL* e, dentro de `backend/`, rode:
-     ```bash
-     DATABASE_URL="postgres://...render.com/cotacoes" python -m app.cli criar-admin --nome "..." --email ... --unidade "Matriz"
-     DATABASE_URL="postgres://...render.com/cotacoes" python -m app.cli importar ../cotacoes-export.json --unidade-id 1
-     ```
-5. Se quiser, configure um domínio próprio (ex.: `cotacoes.h3pharma.com.br`) em **Settings → Custom Domains**. O HTTPS é automático.
+1. Crie uma conta no Render entrando com o GitHub e autorize o acesso ao repositório `Cotacoes-H3`.
+2. Clique em **New → Blueprint**, escolha o repositório e confirme. O Render lê o `render.yaml` e cria o banco e o serviço. Confira os planos e preços nessa tela; evite o banco gratuito, que expira.
+3. O Render pede os valores que não ficam no código:
+   - `GEMINI_API_KEY`: a chave do Google AI Studio (seção 6).
+   - `ADMIN_NOME`, `ADMIN_EMAIL`, `ADMIN_SENHA` (mínimo 8 caracteres): o primeiro admin, criado automaticamente na primeira vez que o sistema sobe.
+   - O `SECRET_KEY` é gerado sozinho e `COOKIE_SECURE=true` já vem definido.
+4. Espere o deploy terminar (alguns minutos) e abra o endereço mostrado pelo Render, algo como `https://cotacoes-h3.onrender.com`. Entre com o e-mail e a senha do admin.
+5. Em **Admin → Importar dados**, envie o `cotacoes-export.json`, escolha a unidade, clique em **Simular** e depois em **Importar de verdade**.
+6. Em **Admin → Unidades** e **Usuários**, cadastre as outras unidades e as pessoas.
+7. Se quiser, configure um domínio próprio (ex.: `cotacoes.h3pharma.com.br`) em **Settings → Custom Domains**. O HTTPS é automático.
+
+Depois que o admin existir, as variáveis `ADMIN_*` não fazem mais nada (o sistema só cria o admin com o banco vazio). Pode apagar a `ADMIN_SENHA` do Render.
+
+Cada vez que um código novo entra no branch do GitHub, o Render publica a nova versão sozinho.
 
 **Alternativas equivalentes:**
 - **Railway:** serviço a partir do `Dockerfile` + plugin PostgreSQL. A variável `DATABASE_URL` do Railway já é aceita.
@@ -154,6 +157,7 @@ A troca entre os dois é só nas variáveis de ambiente, reiniciando o serviço.
 | `DATABASE_URL` | Conexão com o PostgreSQL. Aceita `postgres://`, `postgresql://` ou `postgresql+psycopg://`. |
 | `SECRET_KEY` | Assina a sessão. Use 32+ caracteres aleatórios. Com `COOKIE_SECURE=true`, o servidor se recusa a subir sem uma chave assim. |
 | `COOKIE_SECURE` | `true` em produção (HTTPS). |
+| `ADMIN_NOME` / `ADMIN_EMAIL` / `ADMIN_SENHA` / `ADMIN_UNIDADE` | Primeiro admin, criado ao subir **só se o banco não tiver nenhum usuário**. |
 | `JWT_EXPIRE_HOURS` | Duração da sessão, em horas (padrão 12). |
 | `IA_PROVEDOR` | `gemini` (padrão) ou `anthropic`. |
 | `GEMINI_API_KEY` | Chave do Google Gemini (veja a seção 6). Sem chave, a leitura com IA mostra um aviso e o resto do sistema funciona normalmente. |

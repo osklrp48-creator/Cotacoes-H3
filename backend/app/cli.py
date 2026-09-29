@@ -2,10 +2,12 @@
 
     python -m app.cli criar-admin --nome "Fulano" --email fulano@h3.com.br --unidade "Matriz"
     python -m app.cli importar cotacoes-export.json --unidade-id 1 [--usuario-id 1] [--simular]
+    python -m app.cli criar-admin-inicial   # usa ADMIN_EMAIL/ADMIN_SENHA; só age se não houver nenhum usuário
 """
 
 import argparse
 import getpass
+import os
 import sys
 
 from sqlalchemy import func, select
@@ -46,6 +48,32 @@ def criar_admin(args) -> int:
     return 0
 
 
+def criar_admin_inicial(_args=None) -> int:
+    """Cria o primeiro admin a partir de variáveis de ambiente (para hospedagens sem terminal).
+
+    Não faz nada se ADMIN_EMAIL/ADMIN_SENHA não estiverem definidos ou se já existir algum usuário.
+    """
+    email = os.environ.get("ADMIN_EMAIL", "").strip()
+    senha = os.environ.get("ADMIN_SENHA", "")
+    if not email or not senha:
+        return 0
+    with SessionLocal() as db:
+        if db.scalar(select(func.count(Usuario.id))):
+            print("Admin inicial: já existem usuários, nada a fazer.")
+            return 0
+    if len(senha) < 8:
+        print("Admin inicial NÃO criado: ADMIN_SENHA precisa ter pelo menos 8 caracteres.")
+        return 0  # não impede o sistema de subir
+    args = argparse.Namespace(
+        nome=os.environ.get("ADMIN_NOME", "").strip() or "Administrador",
+        email=email,
+        unidade=os.environ.get("ADMIN_UNIDADE", "").strip() or "Matriz",
+        senha=senha,
+    )
+    criar_admin(args)
+    return 0
+
+
 def importar(args) -> int:
     from .importacao import importar_arquivo
 
@@ -69,6 +97,9 @@ def main(argv=None) -> int:
     p.add_argument("--unidade", required=True, help="Nome da unidade (é criada se não existir)")
     p.add_argument("--senha", help="Se omitida, é pedida no terminal")
     p.set_defaults(func=criar_admin)
+
+    p = sub.add_parser("criar-admin-inicial", help="Cria o primeiro admin a partir de ADMIN_EMAIL/ADMIN_SENHA")
+    p.set_defaults(func=criar_admin_inicial)
 
     p = sub.add_parser("importar", help="Importa o cotacoes-export.json")
     p.add_argument("arquivo", help='Caminho do JSON, ou "-" para ler da entrada padrão')

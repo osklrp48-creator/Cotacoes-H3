@@ -17,5 +17,6 @@ COPY --from=frontend /frontend/dist /app/static
 RUN useradd --create-home app && chown -R app /app
 USER app
 EXPOSE 8000
-# Aplica as migrations e sobe o servidor. A porta vem de $PORT (Render/Railway) ou 8000.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+# Aplica as migrations, cria o admin inicial (se ADMIN_EMAIL/ADMIN_SENHA estiverem definidos e o banco
+# estiver vazio) e sobe o servidor. A porta vem de $PORT (Render/Railway) ou 8000.
+CMD ["sh", "-c", "alembic upgrade head && python -m app.cli criar-admin-inicial && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
