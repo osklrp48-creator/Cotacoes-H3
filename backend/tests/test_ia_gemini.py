@@ -145,6 +145,7 @@ def test_custo_gemini_gratuito(admin, falso):
 @pytest.fixture(autouse=True)
 def _sem_modelo_descoberto(monkeypatch):
     monkeypatch.setattr(gemini, "_modelo_descoberto", None)
+    monkeypatch.setattr(gemini, "_modelo_temporario", None)
 
 
 class GeminiComModeloAposentado(GeminiFalso):
@@ -215,7 +216,9 @@ def test_sobrecarga_usa_modelo_reserva(cliente, monkeypatch, usar_gemini, db):
     assert [c["config"].response_json_schema is not None for c in falso.chamadas] == [True, False, False]
     assert "exatamente estas chaves" in falso.chamadas[-1]["config"].system_instruction
     assert db.query(UsoIA).one().modelo == "gemini-3-flash"
-    # Sobrecarga é temporária: a próxima leitura volta a tentar o modelo principal.
+    # Sobrecarga é temporária: usa o reserva por 30 min e depois volta a tentar o principal.
+    assert gemini.modelo_em_uso() == "gemini-3-flash"
+    monkeypatch.setattr(gemini, "_modelo_temporario", ("gemini-3-flash", 0.0))
     assert gemini.modelo_em_uso() == "gemini-flash-latest"
 
 

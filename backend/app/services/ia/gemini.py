@@ -70,7 +70,14 @@ _modelo_descoberto: str | None = None
 _EXCLUIR = ("image", "tts", "audio", "live", "embedding", "vision", "learnlm", "robotics")
 
 
+# Modelo reserva usado por sobrecarga do principal: vale por um tempo, depois o principal é tentado de novo.
+_modelo_temporario: tuple[str, float] | None = None
+LEMBRAR_RESERVA_SEGUNDOS = 30 * 60
+
+
 def modelo_em_uso() -> str:
+    if _modelo_temporario and time.monotonic() < _modelo_temporario[1]:
+        return _modelo_temporario[0]
     return _modelo_descoberto or get_settings().gemini_model
 
 
@@ -189,7 +196,7 @@ def _temporario(exc: Exception) -> bool:
 def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
     """Tenta, em ordem e dentro do prazo: modelo atual com schema; se falhar por instabilidade, o mesmo
     modelo sem schema (plano B); depois outros modelos "Flash" da chave, também sem schema."""
-    global _modelo_descoberto
+    global _modelo_descoberto, _modelo_temporario
     cliente = obter_cliente()
     principal = modelo_em_uso()
     inicio = time.monotonic()
@@ -236,7 +243,7 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
             if not reservas_na_fila:
                 reservas_na_fila = True
                 try:
-                    outros = [m for m in modelos_disponiveis(cliente) if m != tentativa][:3]
+                    outros = [m for m in modelos_disponiveis(cliente) if m != tentativa][:4]
                 except Exception:  # sem lista de modelos: fica só com o que já está na fila
                     outros = []
                 fila.extend((m, False) for m in outros)
@@ -256,6 +263,9 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
     if modelo != principal and isinstance(primeiro_erro, errors.APIError) and primeiro_erro.code in (404, 429):
         # Modelo principal aposentado ou sem cota: segue no que funcionou até o servidor reiniciar.
         _modelo_descoberto = modelo
+    elif modelo != principal:
+        # Principal sobrecarregado/lento: usa o que funcionou por 30 min antes de tentar o principal de novo.
+        _modelo_temporario = (modelo, time.monotonic() + LEMBRAR_RESERVA_SEGUNDOS)
 
     uso = resposta.usage_metadata
     entrada = int(getattr(uso, "prompt_token_count", 0) or 0)
@@ -305,7 +315,7 @@ def _testar_modelo(cliente, modelo: str) -> dict:
 
 def diagnosticar() -> dict:
     """Testa rapidamente os modelos "Flash" da chave e passa a usar o melhor que responder."""
-    global _modelo_descoberto
+    global _modelo_descoberto, _modelo_temporario
     cliente = obter_cliente()
     atual = modelo_em_uso()
     try:
@@ -319,6 +329,7 @@ def diagnosticar() -> dict:
     ok = [r["modelo"] for r in resultados if r["ok"]]
     if ok and atual not in ok:
         _modelo_descoberto = max(ok, key=_prioridade)
+        _modelo_temporario = None
     return {
         "modelo_antes": atual,
         "modelo_em_uso": modelo_em_uso(),
