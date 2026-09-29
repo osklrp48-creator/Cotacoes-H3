@@ -3,6 +3,7 @@
 import base64
 import copy
 import json
+import re
 
 import httpx
 from google import genai
@@ -43,6 +44,40 @@ def obter_cliente() -> genai.Client:
     return genai.Client(api_key=chave, http_options=types.HttpOptions(timeout=180_000))
 
 
+# Modelo descoberto automaticamente quando o configurado em GEMINI_MODEL não existe mais.
+_modelo_descoberto: str | None = None
+
+_EXCLUIR = ("image", "tts", "audio", "live", "embedding", "vision", "learnlm", "robotics")
+
+
+def modelo_em_uso() -> str:
+    return _modelo_descoberto or get_settings().gemini_model
+
+
+def _prioridade(nome: str) -> tuple:
+    """Maior = melhor. Alias "latest" > versão estável mais nova > preview; "lite" só como último recurso."""
+    m = re.search(r"gemini-(\d+)(?:\.(\d+))?", nome)
+    versao = (int(m[1]), int(m[2] or 0)) if m else ()
+    return (
+        "lite" not in nome,
+        "latest" in nome,
+        not any(p in nome for p in ("preview", "exp")),
+        versao,
+        nome,
+    )
+
+
+def descobrir_modelo(cliente) -> str | None:
+    """Pergunta ao Google quais modelos "Flash" esta chave pode usar e escolhe o melhor."""
+    candidatos = []
+    for modelo in cliente.models.list():
+        nome = (modelo.name or "").removeprefix("models/")
+        acoes = modelo.supported_actions or []
+        if "flash" in nome and "generateContent" in acoes and not any(x in nome for x in _EXCLUIR):
+            candidatos.append(nome)
+    return max(candidatos, key=_prioridade) if candidatos else None
+
+
 def _partes(blocos: list[dict]) -> list:
     """Converte os blocos (formato da extração) em partes do Gemini."""
     partes: list = []
@@ -63,7 +98,9 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
         return IAIndisponivel("A chave do Gemini é inválida ou sem permissão. Avise o administrador.", 503)
     if codigo == 404:
         return IAIndisponivel(
-            f"O modelo {get_settings().gemini_model} não foi encontrado no Gemini. Ajuste GEMINI_MODEL.", 503
+            f"Nenhum modelo Gemini Flash disponível para esta chave (o modelo {modelo_em_uso()} não existe mais). "
+            "Confira a chave no Google AI Studio.",
+            503,
         )
     if codigo == 429:
         return IAIndisponivel(
@@ -78,20 +115,35 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
     return IAIndisponivel("O serviço de IA está indisponível no momento. Tente novamente em instantes.")
 
 
+def _gerar(cliente, modelo: str, blocos: list[dict]):
+    return cliente.models.generate_content(
+        model=modelo,
+        contents=_partes(blocos),
+        config=types.GenerateContentConfig(
+            system_instruction=INSTRUCOES,
+            response_mime_type="application/json",
+            response_json_schema=SCHEMA,
+            max_output_tokens=16000,
+        ),
+    )
+
+
 def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
+    global _modelo_descoberto
     cliente = obter_cliente()
-    modelo = get_settings().gemini_model
+    modelo = modelo_em_uso()
     try:
-        resposta = cliente.models.generate_content(
-            model=modelo,
-            contents=_partes(blocos),
-            config=types.GenerateContentConfig(
-                system_instruction=INSTRUCOES,
-                response_mime_type="application/json",
-                response_json_schema=SCHEMA,
-                max_output_tokens=16000,
-            ),
-        )
+        try:
+            resposta = _gerar(cliente, modelo, blocos)
+        except errors.APIError as exc:
+            if exc.code != 404:
+                raise
+            # O Google aposentou o modelo: escolhe sozinho o "Flash" disponível mais novo e tenta de novo.
+            novo = descobrir_modelo(cliente)
+            if not novo or novo == modelo:
+                raise
+            _modelo_descoberto = modelo = novo
+            resposta = _gerar(cliente, modelo, blocos)
     except errors.APIError as exc:
         raise _erro_api(exc) from exc
     except httpx.TimeoutException as exc:

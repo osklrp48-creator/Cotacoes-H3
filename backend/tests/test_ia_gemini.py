@@ -70,7 +70,7 @@ def test_texto_com_gemini(cliente, falso, db):
     assert d["itens"] == [{"produto": "Luva M", "marca": "Supermax", "unidade": "CX", "qtd": 3.0, "valorUnit": 24.5}]
 
     chamada = falso.chamadas[0]
-    assert chamada["model"] == "gemini-2.5-flash"
+    assert chamada["model"] == "gemini-flash-latest"
     config = chamada["config"]
     assert config.response_mime_type == "application/json"
     assert "26.643.172/0001-77" in config.system_instruction
@@ -78,7 +78,7 @@ def test_texto_com_gemini(cliente, falso, db):
     assert any("luva 24,50 cx" in p for p in chamada["contents"] if isinstance(p, str))
 
     uso = db.query(UsoIA).one()
-    assert (uso.modelo, uso.tokens_entrada, uso.tokens_saida, uso.sucesso) == ("gemini-2.5-flash", 1800, 350, True)
+    assert (uso.modelo, uso.tokens_entrada, uso.tokens_saida, uso.sucesso) == ("gemini-flash-latest", 1800, 350, True)
     assert cliente.get("/api/registros").json()["total"] == 0
 
 
@@ -137,6 +137,55 @@ def test_sem_chave_gemini(cliente, monkeypatch, usar_gemini):
 def test_custo_gemini_gratuito(admin, falso):
     admin.post("/api/ia/ler-cotacao", data={"texto": "a"})
     d = admin.get("/api/admin/uso-ia").json()
-    assert d["provedor"] == "gemini" and d["modelo"] == "gemini-2.5-flash"
+    assert d["provedor"] == "gemini" and d["modelo"] == "gemini-flash-latest"
     assert d["total"]["tokens_entrada"] == 1800
     assert d["total"]["custo_estimado_usd"] == 0
+
+
+@pytest.fixture(autouse=True)
+def _sem_modelo_descoberto(monkeypatch):
+    monkeypatch.setattr(gemini, "_modelo_descoberto", None)
+
+
+class GeminiComModeloAposentado(GeminiFalso):
+    """Recusa (404) qualquer modelo fora da lista e lista os modelos disponíveis."""
+
+    def __init__(self, disponiveis):
+        super().__init__()
+        self.disponiveis = disponiveis
+
+    def generate_content(self, **kwargs):
+        if kwargs["model"] not in self.disponiveis:
+            self.chamadas.append(kwargs)
+            raise errors.ClientError(404, {"error": {"code": 404, "message": "models/x is not found", "status": "NOT_FOUND"}})
+        return super().generate_content(**kwargs)
+
+    def list(self, config=None):
+        todos = [*self.disponiveis, "gemini-embedding-001", "gemini-2.5-flash-image"]
+        return [
+            types.Model(name=f"models/{n}", supported_actions=["embedContent"] if "embedding" in n else ["generateContent"])
+            for n in todos
+        ]
+
+
+def test_modelo_aposentado_troca_sozinho(cliente, monkeypatch, usar_gemini, db):
+    monkeypatch.setattr(get_settings(), "gemini_model", "gemini-2.5-flash")
+    falso = GeminiComModeloAposentado(["gemini-3-flash", "gemini-3.1-flash-lite", "gemini-3.1-flash-preview"])
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 200, r.text
+    assert [c["model"] for c in falso.chamadas] == ["gemini-2.5-flash", "gemini-3-flash"]
+    assert db.query(UsoIA).one().modelo == "gemini-3-flash"
+
+    # A escolha fica guardada: a próxima leitura já vai direto no modelo novo.
+    cliente.post("/api/ia/ler-cotacao", data={"texto": "y"})
+    assert falso.chamadas[-1]["model"] == "gemini-3-flash"
+
+
+def test_modelo_aposentado_sem_alternativa(cliente, monkeypatch, usar_gemini):
+    monkeypatch.setattr(get_settings(), "gemini_model", "gemini-2.5-flash")
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiComModeloAposentado([]))
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 503
+    assert "Nenhum modelo Gemini Flash disponível" in r.json()["detail"]

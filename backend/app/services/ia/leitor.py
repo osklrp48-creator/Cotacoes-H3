@@ -165,7 +165,11 @@ def normalizar_resposta(bruto: dict) -> dict:
 
 def modelo_atual() -> str:
     s = get_settings()
-    return s.gemini_model if s.ia_provedor == "gemini" else s.anthropic_model
+    if s.ia_provedor == "gemini":
+        from . import gemini
+
+        return gemini.modelo_em_uso()
+    return s.anthropic_model
 
 
 def ler_cotacao(blocos: list[dict]) -> ResultadoIA:

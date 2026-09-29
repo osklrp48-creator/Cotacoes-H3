@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Qual IA lê as cotações: "gemini" (Google, tem camada gratuita) ou "anthropic" (Claude, paga por uso).
     ia_provedor: Literal["gemini", "anthropic"] = "gemini"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-flash-latest"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     ia_max_mb: int = 20

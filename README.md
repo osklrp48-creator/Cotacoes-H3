@@ -169,7 +169,7 @@ A troca entre os dois é só nas variáveis de ambiente, reiniciando o serviço.
 | `JWT_EXPIRE_HOURS` | Duração da sessão, em horas (padrão 12). |
 | `IA_PROVEDOR` | `gemini` (padrão) ou `anthropic`. |
 | `GEMINI_API_KEY` | Chave do Google Gemini (veja a seção 6). Sem chave, a leitura com IA mostra um aviso e o resto do sistema funciona normalmente. |
-| `GEMINI_MODEL` | Modelo do Gemini (padrão `gemini-2.5-flash`). Se o Google aposentar esse modelo, troque pelo "Flash" atual listado no AI Studio. |
+| `GEMINI_MODEL` | Modelo do Gemini (padrão `gemini-flash-latest`, que o Google mantém apontando para o Flash atual). Se o modelo configurado for aposentado, o sistema escolhe sozinho o Flash disponível mais novo. |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Só com `IA_PROVEDOR=anthropic`: chave e modelo do Claude (padrão `claude-sonnet-5-5`). |
 | `IA_MAX_MB` | Tamanho máximo do arquivo enviado à IA (padrão 20). |
 | `IA_PRECO_ENTRADA_MTOK` / `IA_PRECO_SAIDA_MTOK` | US$ por milhão de tokens, só para a **estimativa** de custo no Admin. Vazio = 0 no Gemini e 2 / 10 no Claude Sonnet 5.5. |
