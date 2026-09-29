@@ -1,0 +1,26 @@
+# Blueprint do Render: um serviço web (API + site) e um PostgreSQL.
+# No Render: New > Blueprint > escolha este repositório.
+services:
+  - type: web
+    name: cotacoes-h3
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/saude
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cotacoes-h3-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+
+databases:
+  - name: cotacoes-h3-db
+    plan: basic-256mb
+    databaseName: cotacoes
