@@ -131,9 +131,11 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
             503,
         )
     if codigo == 429:
+        cota = re.search(r"limit: *(\d+)", exc.message or "")
+        extra = f" (cota do Google: {cota[1]} por período)" if cota else ""
         return IAIndisponivel(
-            "O limite de uso gratuito do Gemini foi atingido. Aguarde um minuto e tente de novo "
-            "(se continuar, o limite do dia acabou e volta amanhã).",
+            "O limite de uso gratuito do Gemini foi atingido em todos os modelos disponíveis" + extra + ". "
+            "Aguarde um minuto e tente de novo (se continuar, o limite do dia acabou e volta amanhã). " + detalhe,
             429,
         )
     if codigo == 400:
@@ -165,8 +167,12 @@ def _gerar(cliente, modelo: str, blocos: list[dict], segundos: float = TEMPO_POR
 
 
 def _temporario(exc: Exception) -> bool:
+    """Vale tentar outro modelo: demora, instabilidade (5xx) ou cota gratuita esgotada (429).
+
+    No Gemini gratuito cada modelo tem a própria cota, então outro modelo pode estar livre.
+    """
     return isinstance(exc, httpx.TimeoutException) or (
-        isinstance(exc, errors.APIError) and exc.code in ERROS_TEMPORARIOS
+        isinstance(exc, errors.APIError) and exc.code in (*ERROS_TEMPORARIOS, 429)
     )
 
 
@@ -197,18 +203,24 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
                 raise _erro_api(exc) from exc
             raise
         # Modelo sobrecarregado ou lento: tenta outros "Flash" da chave enquanto houver tempo.
-        log.warning("Gemini %s sem resposta (%s); tentando outro modelo.", modelo, getattr(exc, "code", "timeout"))
+        log.warning(
+            "Gemini %s falhou (%s: %s); tentando outro modelo.",
+            modelo, getattr(exc, "code", "timeout"), (getattr(exc, "message", "") or "")[:300],
+        )
         resposta = None
         ultimo_erro: Exception = exc
         try:
-            reservas = [m for m in modelos_disponiveis(cliente) if m != modelo][:2]
-        except (errors.APIError, httpx.HTTPError):
+            reservas = [m for m in modelos_disponiveis(cliente) if m != modelo][:3]
+        except Exception:  # sem lista de modelos: fica só com o erro original
             reservas = []
         for reserva in reservas:
             if restante() < 15:
                 break
             try:
                 resposta = _gerar(cliente, reserva, blocos, min(TEMPO_POR_CHAMADA, restante()))
+                if isinstance(exc, errors.APIError) and exc.code == 429:
+                    # Cota do modelo principal esgotada: segue no que funcionou até o servidor reiniciar.
+                    _modelo_descoberto = reserva
                 modelo = reserva
                 break
             except (errors.APIError, httpx.TimeoutException) as exc_reserva:

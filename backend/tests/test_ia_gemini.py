@@ -259,3 +259,35 @@ def test_leitura_tem_prazo_maximo(cliente, monkeypatch, usar_gemini):
     assert "não respondeu a tempo" in r.json()["detail"]
     assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
     assert falso.chamadas[0]["config"].http_options.timeout == 60_000
+
+
+class GeminiSemCota(GeminiComModeloAposentado):
+    """Modelos listados em `sem_cota` respondem 429 (cota gratuita esgotada)."""
+
+    def __init__(self, disponiveis, sem_cota):
+        super().__init__(disponiveis)
+        self.sem_cota = sem_cota
+
+    def generate_content(self, **kwargs):
+        if kwargs["model"] in self.sem_cota:
+            self.chamadas.append(kwargs)
+            raise errors.ClientError(429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                "message": "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0"}})
+        return super().generate_content(**kwargs)
+
+
+def test_cota_esgotada_usa_outro_modelo(cliente, monkeypatch, usar_gemini):
+    falso = GeminiSemCota(["gemini-flash-latest", "gemini-3-flash", "gemini-3.1-flash-lite"], {"gemini-flash-latest", "gemini-3-flash"})
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 200, r.text
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash", "gemini-3.1-flash-lite"]
+    assert gemini.modelo_em_uso() == "gemini-3.1-flash-lite"  # guarda o modelo com cota
+
+
+def test_cota_esgotada_em_todos_mostra_limite(cliente, monkeypatch, usar_gemini):
+    todos = ["gemini-flash-latest", "gemini-3-flash"]
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiSemCota(todos, set(todos)))
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 429
+    assert "todos os modelos" in r.json()["detail"] and "cota do Google: 0" in r.json()["detail"]
