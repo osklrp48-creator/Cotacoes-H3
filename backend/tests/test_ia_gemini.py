@@ -328,3 +328,19 @@ def test_diagnostico_mostra_se_o_formato_funciona(admin, monkeypatch, usar_gemin
     teste = d["teste_leitura"]
     assert teste["com_formato"]["ok"] is False and "500" in teste["com_formato"]["erro"]
     assert teste["sem_formato"]["ok"] is True
+
+
+def test_pdf_com_texto_vai_como_texto(cliente, falso):
+    from tests.conftest import pdf_com_texto
+
+    pdf = pdf_com_texto([
+        "ORCAMENTO 123 - Distribuidora Alfa Ltda",
+        "Produto                 Qtd    Valor unit.",
+        "Dipirona 500mg cx       10     12,50",
+        "Luva procedimento M     5      24,90",
+    ])
+    r = cliente.post("/api/ia/ler-cotacao", files={"arquivo": ("cot.pdf", pdf, "application/pdf")})
+    assert r.status_code == 200, r.text
+    enviado = falso.chamadas[0]["contents"][0]
+    assert isinstance(enviado, str), "PDF com texto deve ir como texto, não como arquivo"
+    assert "Dipirona 500mg" in enviado and "24,90" in enviado and "texto extraído" in enviado

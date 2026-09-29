@@ -91,3 +91,28 @@ def novo_registro(**extra):
     }
     base.update(extra)
     return base
+
+
+def pdf_com_texto(linhas: list[str]) -> bytes:
+    """Gera um PDF simples (1 página, fonte Helvetica) com as linhas de texto dadas."""
+    conteudo = "BT /F1 11 Tf 50 780 Td 14 TL " + " ".join(
+        f"({l.replace('(', '[').replace(')', ']')}) Tj T*" for l in linhas
+    ) + " ET"
+    objetos = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+        "/Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(conteudo.encode('latin-1'))} >>\nstream\n{conteudo}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    saida = b"%PDF-1.4\n"
+    posicoes = []
+    for i, obj in enumerate(objetos, start=1):
+        posicoes.append(len(saida))
+        saida += f"{i} 0 obj\n{obj}\nendobj\n".encode("latin-1")
+    xref = len(saida)
+    saida += f"xref\n0 {len(objetos) + 1}\n0000000000 65535 f \n".encode()
+    saida += "".join(f"{p:010d} 00000 n \n" for p in posicoes).encode()
+    saida += f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return saida

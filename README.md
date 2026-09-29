@@ -197,7 +197,7 @@ Não há tabela própria de produtos. Eles são agrupados por nome normalizado (
 ### Leitura com IA
 - **O que a rota faz:** `POST /api/ia/ler-cotacao` recebe um arquivo ou um texto e devolve os campos para **pré-preencher** o formulário. **Nunca grava registros.**
 - **Tipos de arquivo:**
-  - PDF e imagens vão direto para a API.
+  - PDF com texto (gerado por sistema) tem o texto extraído no servidor (`pypdf`) e só o texto vai para a IA, o que é bem mais leve. PDF escaneado e imagens vão como arquivo.
   - `.docx` vira texto, com as tabelas linha a linha.
   - `.xlsx`, `.xls` e `.csv` viram CSV, uma aba por bloco.
   - `.doc` é recusado com orientação para salvar como `.docx` ou PDF.

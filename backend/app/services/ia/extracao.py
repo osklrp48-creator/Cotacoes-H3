@@ -81,6 +81,36 @@ def texto_docx(dados: bytes) -> str:
     return "\n".join(linhas)
 
 
+MIN_CARACTERES_POR_PAGINA = 40
+
+
+def texto_pdf(dados: bytes) -> str:
+    """Texto do PDF preservando o alinhamento das colunas. Vazio se o PDF não tiver texto suficiente
+    (escaneado) ou não puder ser lido — aí o arquivo vai inteiro para a IA."""
+    import logging
+
+    from pypdf import PdfReader
+
+    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    try:
+        leitor = PdfReader(io.BytesIO(dados))
+        paginas = []
+        for pagina in leitor.pages:
+            try:
+                paginas.append(pagina.extract_text(extraction_mode="layout"))
+            except Exception:
+                paginas.append(pagina.extract_text() or "")
+    except Exception:
+        return ""
+    # Tira linhas vazias repetidas e espaços sobrando à direita.
+    linhas = [l.rstrip() for p in paginas for l in (p or "").splitlines()]
+    texto = "\n".join(l for i, l in enumerate(linhas) if l or (i and linhas[i - 1]))
+    uteis = sum(1 for c in texto if c.isalnum())
+    if not paginas or uteis < MIN_CARACTERES_POR_PAGINA * len(paginas):
+        return ""
+    return texto.strip()
+
+
 def _decodificar(dados: bytes) -> str:
     for codificacao in ("utf-8-sig", "cp1252", "latin-1"):
         try:
@@ -125,6 +155,11 @@ def preparar_arquivo(nome: str, dados: bytes, limite_mb: int) -> Conteudo:
     if ext == ".pdf":
         if not dados.startswith(b"%PDF"):
             raise ArquivoInvalido("Esse arquivo não parece ser um PDF válido.")
+        texto = texto_pdf(dados)
+        if texto:
+            # PDF com texto (gerado por sistema): manda só o texto, bem mais leve para a IA.
+            return Conteudo("pdf", [_bloco_texto("Conteúdo do PDF da cotação (texto extraído)", texto)])
+        # PDF escaneado (só imagem) ou ilegível: manda o arquivo para a IA ler visualmente.
         b64 = base64.standard_b64encode(dados).decode()
         return Conteudo(
             "pdf", [{"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}]
