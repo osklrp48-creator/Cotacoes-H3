@@ -154,6 +154,13 @@ Cada vez que um código novo entra no branch do GitHub, o Render publica a nova 
 3. **Limites:** a camada gratuita tem limite de leituras por minuto e por dia. Quando estoura, o sistema mostra "O limite de uso gratuito do Gemini foi atingido".
 4. **Privacidade:** na camada gratuita, o Google pode usar o que é enviado (as cotações) para melhorar os produtos dele. Se isso não for aceitável, ative o faturamento no Google (camada paga, que não usa os dados assim) ou troque para o Claude.
 
+**Groq (reserva gratuita, recomendado):** o Gemini gratuito às vezes fica sem cota ou sobrecarregado. Com o Groq configurado, o sistema passa sozinho para ele nesses casos.
+1. Crie uma conta em **https://console.groq.com** (pode entrar com o Google; não pede cartão).
+2. Em **API Keys**, clique em **Create API Key** e copie a chave.
+3. Cole em `GROQ_API_KEY` (no `.env` ou no Environment do Render).
+
+O Groq só lê texto: cobre texto colado, Word, planilhas e PDFs com texto. PDF escaneado e fotos dependem do Gemini. Se o modelo configurado (`GROQ_MODEL`) for aposentado, o sistema escolhe outro sozinho.
+
 **Claude (Anthropic):** mude `IA_PROVEDOR=anthropic` e preencha `ANTHROPIC_API_KEY` (crie em console.anthropic.com). Custa perto de 1 a 3 centavos de dólar por cotação; dá para definir um limite mensal de gasto no console.
 
 A troca entre os dois é só nas variáveis de ambiente, reiniciando o serviço. O formulário e o resto do sistema não mudam.
@@ -170,6 +177,7 @@ A troca entre os dois é só nas variáveis de ambiente, reiniciando o serviço.
 | `IA_PROVEDOR` | `gemini` (padrão) ou `anthropic`. |
 | `GEMINI_API_KEY` | Chave do Google Gemini (veja a seção 6). Sem chave, a leitura com IA mostra um aviso e o resto do sistema funciona normalmente. |
 | `GEMINI_MODEL` | Modelo do Gemini (padrão `gemini-flash-latest`, que o Google mantém apontando para o Flash atual). Se o modelo configurado for aposentado, o sistema escolhe sozinho o Flash disponível mais novo. |
+| `GROQ_API_KEY` / `GROQ_MODEL` | Reserva gratuita (Groq) usada quando o Gemini falha por cota ou sobrecarga. Também dá para usar só ele com `IA_PROVEDOR=groq` (só texto). |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Só com `IA_PROVEDOR=anthropic`: chave e modelo do Claude (padrão `claude-sonnet-5-5`). |
 | `IA_MAX_MB` | Tamanho máximo do arquivo enviado à IA (padrão 20). |
 | `IA_PRECO_ENTRADA_MTOK` / `IA_PRECO_SAIDA_MTOK` | US$ por milhão de tokens, só para a **estimativa** de custo no Admin. Vazio = 0 no Gemini e 2 / 10 no Claude Sonnet 5.5. |

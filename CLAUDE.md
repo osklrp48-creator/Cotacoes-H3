@@ -9,7 +9,8 @@
 ## Stack atual (gratuita)
 - Site + API: Render, plano Free (Docker, `render.yaml`).
 - Banco: Neon, PostgreSQL gratuito (`DATABASE_URL`).
-- IA: Google Gemini, camada gratuita (`IA_PROVEDOR=gemini`); Anthropic fica como opção paga.
+- IA: Google Gemini, camada gratuita (`IA_PROVEDOR=gemini`), com Groq gratuito como reserva automática
+  (`GROQ_API_KEY`, só texto); Anthropic fica como opção paga.
 
 ## Comandos de desenvolvimento
 - Backend: `cd backend && pytest` (precisa de um PostgreSQL de teste em `TEST_DATABASE_URL`).

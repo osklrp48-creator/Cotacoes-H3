@@ -15,9 +15,12 @@ class Settings(BaseSettings):
     cors_origins: str = ""  # lista separada por vírgula (só necessário se o frontend estiver em outro domínio)
 
     # Qual IA lê as cotações: "gemini" (Google, tem camada gratuita) ou "anthropic" (Claude, paga por uso).
-    ia_provedor: Literal["gemini", "anthropic"] = "gemini"
+    ia_provedor: Literal["gemini", "anthropic", "groq"] = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-flash-latest"
+    # Groq (gratuito): reserva automática quando o Gemini falha por cota ou sobrecarga. Só lê texto.
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     ia_max_mb: int = 20
@@ -30,7 +33,7 @@ class Settings(BaseSettings):
 
     def precos_ia(self) -> tuple[float, float]:
         """(entrada, saída) em US$ por milhão de tokens."""
-        padrao = (0.0, 0.0) if self.ia_provedor == "gemini" else (2.0, 10.0)
+        padrao = (2.0, 10.0) if self.ia_provedor == "anthropic" else (0.0, 0.0)
         return (
             padrao[0] if self.ia_preco_entrada_mtok is None else self.ia_preco_entrada_mtok,
             padrao[1] if self.ia_preco_saida_mtok is None else self.ia_preco_saida_mtok,

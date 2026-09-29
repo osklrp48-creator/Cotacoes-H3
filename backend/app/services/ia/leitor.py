@@ -169,16 +169,43 @@ def modelo_atual() -> str:
         from . import gemini
 
         return gemini.modelo_em_uso()
+    if s.ia_provedor == "groq":
+        from . import groq_ia
+
+        return f"groq/{groq_ia.modelo_em_uso()}"
     return s.anthropic_model
 
 
 def ler_cotacao(blocos: list[dict]) -> ResultadoIA:
-    """Lê a cotação com o provedor configurado em IA_PROVEDOR (gemini ou anthropic)."""
-    if get_settings().ia_provedor == "gemini":
-        from . import gemini
+    """Lê a cotação com o provedor configurado em IA_PROVEDOR (gemini, groq ou anthropic).
 
+    Com o Gemini, se ele falhar por cota ou sobrecarga e houver GROQ_API_KEY, tenta o Groq (gratuito).
+    """
+    provedor = get_settings().ia_provedor
+    if provedor == "groq":
+        from . import groq_ia
+
+        if not groq_ia.aceita(blocos):
+            raise IAIndisponivel(
+                "O Groq só lê texto. Para foto ou PDF escaneado, use o Gemini (IA_PROVEDOR=gemini) ou cole o texto.",
+                422,
+            )
+        return groq_ia.ler_com_groq(blocos)
+    if provedor != "gemini":
+        return ler_com_anthropic(blocos)
+
+    from . import gemini, groq_ia
+
+    try:
         return gemini.ler_com_gemini(blocos)
-    return ler_com_anthropic(blocos)
+    except IAIndisponivel as erro_gemini:
+        if erro_gemini.status not in (429, 502, 503, 504) or not groq_ia.configurado() or not groq_ia.aceita(blocos):
+            raise
+        try:
+            return groq_ia.ler_com_groq(blocos)
+        except IAIndisponivel as erro_groq:
+            erro_gemini.args = (f"{erro_gemini.args[0]} A IA reserva também falhou: {erro_groq.args[0]}",)
+            raise erro_gemini from erro_groq
 
 
 def ler_com_anthropic(blocos: list[dict]) -> ResultadoIA:

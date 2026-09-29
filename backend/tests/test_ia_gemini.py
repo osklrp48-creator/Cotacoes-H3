@@ -297,7 +297,7 @@ def test_cota_esgotada_em_todos_mostra_limite(cliente, monkeypatch, usar_gemini)
     monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiSemCota(todos, set(todos)))
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 429
-    assert "todos os modelos" in r.json()["detail"] and "cota do Google: 0" in r.json()["detail"]
+    assert "limite de uso gratuito" in r.json()["detail"] and "último modelo: 0" in r.json()["detail"]
 
 
 

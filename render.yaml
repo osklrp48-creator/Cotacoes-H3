@@ -31,3 +31,6 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-flash-latest
+      # Reserva gratuita: se o Gemini falhar por cota/sobrecarga, lê com o Groq (console.groq.com)
+      - key: GROQ_API_KEY
+        sync: false

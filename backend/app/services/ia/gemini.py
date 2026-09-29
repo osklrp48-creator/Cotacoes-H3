@@ -66,7 +66,7 @@ def obter_cliente() -> genai.Client:
 # Modelo descoberto automaticamente quando o configurado em GEMINI_MODEL não existe mais.
 _modelo_descoberto: str | None = None
 
-_EXCLUIR = ("image", "tts", "audio", "live", "embedding", "vision", "learnlm", "robotics")
+_EXCLUIR = ("image", "tts", "audio", "live", "embedding", "vision", "learnlm", "robotics", "omni")
 
 
 # Modelo reserva usado por sobrecarga do principal: vale por um tempo, depois o principal é tentado de novo.
@@ -138,9 +138,9 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
         )
     if codigo == 429:
         cota = re.search(r"limit: *(\d+)", exc.message or "")
-        extra = f" (cota do Google: {cota[1]} por período)" if cota else ""
+        extra = f" (cota informada pelo Google para o último modelo: {cota[1]})" if cota else ""
         return IAIndisponivel(
-            "O limite de uso gratuito do Gemini foi atingido em todos os modelos disponíveis" + extra + ". "
+            "O limite de uso gratuito do Gemini foi atingido" + extra + ". "
             "Aguarde um minuto e tente de novo (se continuar, o limite do dia acabou e volta amanhã). " + detalhe,
             429,
         )
