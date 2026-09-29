@@ -113,13 +113,25 @@ Os testes cobrem:
 - importação
 - rota de IA com o Gemini e a Anthropic **mockados**: texto, PDF, imagem, .docx com tabelas, .xlsx com várias abas, CSV, recusa de `.doc`, limite de tamanho, erros em português e registro de uso
 
-## 5. Colocar no ar (sugestão: Render) — sem instalar nada
+## 5. Colocar no ar de graça — sem instalar nada
 
-O [Render](https://render.com) roda o sistema na nuvem: um **Web Service** (Docker) com API e site juntos e um **PostgreSQL** gerenciado. Tudo é feito pelo navegador; não precisa de Docker nem de terminal no seu computador.
+Tudo é feito pelo navegador e sem custo:
+- **Banco:** [Neon](https://neon.tech), PostgreSQL gratuito que não expira (0,5 GB).
+- **Site:** [Render](https://render.com), plano **Free**.
+- **IA:** Gemini, camada gratuita (seção 6).
 
+**Limitação do plano Free do Render:** depois de uns 15 minutos sem ninguém usar, o site "dorme". O primeiro acesso seguinte demora cerca de 1 minuto para abrir; depois fica normal. Os dados não se perdem, porque ficam no Neon.
+
+### 5.1 Criar o banco no Neon
+1. Crie uma conta em **neon.tech** (pode entrar com o GitHub ou o Google). Não pede cartão.
+2. Crie um projeto (ex.: `cotacoes-h3`), escolhendo a região mais próxima do Brasil que aparecer.
+3. No painel do projeto, clique em **Connect** e copie a **connection string**. Ela começa com `postgresql://` e termina com `?sslmode=require`.
+
+### 5.2 Publicar o site no Render
 1. Crie uma conta no Render entrando com o GitHub e autorize o acesso ao repositório `Cotacoes-H3`.
-2. Clique em **New → Blueprint**, escolha o repositório e confirme. O Render lê o `render.yaml` e cria o banco e o serviço. Confira os planos e preços nessa tela; evite o banco gratuito, que expira.
+2. Clique em **New → Blueprint**, escolha o repositório e confirme. O Render lê o `render.yaml`, que já usa o plano **Free** e não cria banco no Render (o banco gratuito de lá expira).
 3. O Render pede os valores que não ficam no código:
+   - `DATABASE_URL`: a connection string do Neon.
    - `GEMINI_API_KEY`: a chave do Google AI Studio (seção 6).
    - `ADMIN_NOME`, `ADMIN_EMAIL`, `ADMIN_SENHA` (mínimo 8 caracteres): o primeiro admin, criado automaticamente na primeira vez que o sistema sobe.
    - O `SECRET_KEY` é gerado sozinho e `COOKIE_SECURE=true` já vem definido.
@@ -132,11 +144,7 @@ Depois que o admin existir, as variáveis `ADMIN_*` não fazem mais nada (o sist
 
 Cada vez que um código novo entra no branch do GitHub, o Render publica a nova versão sozinho.
 
-**Alternativas equivalentes:**
-- **Railway:** serviço a partir do `Dockerfile` + plugin PostgreSQL. A variável `DATABASE_URL` do Railway já é aceita.
-- **Fly.io:** também funciona com o mesmo `Dockerfile`.
-
-Em qualquer uma, defina as mesmas variáveis do `.env.example`.
+**Se um dia o site dormindo incomodar:** um plano pago do Render (ou Railway/Fly.io, com o mesmo `Dockerfile`) mantém o site sempre acordado. O banco pode continuar no Neon. Em qualquer hospedagem, defina as mesmas variáveis do `.env.example`.
 
 ## 6. Leitura com IA: Gemini (grátis) ou Claude (pago)
 

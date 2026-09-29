@@ -1,16 +1,17 @@
-# Blueprint do Render: um serviço web (API + site) e um PostgreSQL.
+# Blueprint do Render — plano GRATUITO.
+# O site roda no plano Free do Render; o banco fica no Neon (PostgreSQL gratuito que não expira),
+# porque o banco gratuito do próprio Render é apagado depois de um tempo.
 # No Render: New > Blueprint > escolha este repositório.
 services:
   - type: web
     name: cotacoes-h3
     runtime: docker
-    plan: starter
+    plan: free
     healthCheckPath: /api/saude
     envVars:
+      # Cole aqui a "connection string" do Neon (postgresql://...neon.tech/...?sslmode=require)
       - key: DATABASE_URL
-        fromDatabase:
-          name: cotacoes-h3-db
-          property: connectionString
+        sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: COOKIE_SECURE
@@ -30,8 +31,3 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
-
-databases:
-  - name: cotacoes-h3-db
-    plan: basic-256mb
-    databaseName: cotacoes
