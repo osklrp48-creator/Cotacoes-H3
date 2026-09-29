@@ -211,9 +211,9 @@ def test_sobrecarga_usa_modelo_reserva(cliente, monkeypatch, usar_gemini, db):
     monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 200, r.text
-    # Plano B no mesmo modelo (sem schema) e depois o modelo reserva.
-    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-flash-latest", "gemini-3-flash"]
-    assert [c["config"].response_json_schema is not None for c in falso.chamadas] == [True, False, False]
+    # "High demand" (503) vale para o modelo inteiro: vai direto para o reserva.
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
+    assert [c["config"].response_json_schema is not None for c in falso.chamadas] == [True, False]
     assert "exatamente estas chaves" in falso.chamadas[-1]["config"].system_instruction
     assert db.query(UsoIA).one().modelo == "gemini-3-flash"
     # Sobrecarga é temporária: usa o reserva por 30 min e depois volta a tentar o principal.
@@ -229,12 +229,13 @@ def test_sobrecarga_em_todos_explica_que_e_do_google(cliente, monkeypatch, usar_
     assert r.status_code == 502
     detalhe = r.json()["detail"]
     assert "sobrecarregado" in detalhe and "503 UNAVAILABLE" in detalhe
+    assert "Modelos tentados: gemini-flash-latest, gemini-3-flash" in detalhe
 
 
 def test_cliente_tenta_de_novo_em_erros_temporarios():
     cliente = gemini.obter_cliente()
     retry = cliente._api_client._http_options.retry_options
-    assert retry.attempts == 2 and 503 in retry.http_status_codes and 429 not in retry.http_status_codes
+    assert retry.attempts == 1  # troca de modelo em vez de repetir no mesmo
 
 
 def test_diagnostico_escolhe_modelo_que_responde(admin, cliente, monkeypatch, usar_gemini):
@@ -301,12 +302,12 @@ def test_cota_esgotada_em_todos_mostra_limite(cliente, monkeypatch, usar_gemini)
 
 
 class GeminiRecusaSchema(GeminiComModeloAposentado):
-    """Responde 503 sempre que a chamada leva schema; sem schema, funciona (e cerca o JSON com ```)."""
+    """Responde 500 sempre que a chamada leva schema; sem schema, funciona (e cerca o JSON com ```)."""
 
     def generate_content(self, **kwargs):
         self.chamadas.append(kwargs)
         if kwargs["config"].response_json_schema is not None:
-            raise errors.ServerError(503, {"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}})
+            raise errors.ServerError(500, {"error": {"code": 500, "message": "internal", "status": "INTERNAL"}})
         if kwargs["contents"] == "Responda apenas com a palavra OK.":
             return _resposta("OK")
         return _resposta("```json\n" + json.dumps(RESPOSTA) + "\n```")
@@ -325,5 +326,5 @@ def test_diagnostico_mostra_se_o_formato_funciona(admin, monkeypatch, usar_gemin
     monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiRecusaSchema(["gemini-flash-latest"]))
     d = admin.post("/api/admin/ia/testar").json()
     teste = d["teste_leitura"]
-    assert teste["com_formato"]["ok"] is False and "503" in teste["com_formato"]["erro"]
+    assert teste["com_formato"]["ok"] is False and "500" in teste["com_formato"]["erro"]
     assert teste["sem_formato"]["ok"] is True

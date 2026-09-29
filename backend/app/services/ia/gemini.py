@@ -41,7 +41,7 @@ SCHEMA = _schema()
 
 log = logging.getLogger("cotacoes.ia")
 
-# Erros temporários do lado do Google (instabilidade/sobrecarga): o SDK tenta de novo sozinho.
+# Erros temporários do lado do Google (instabilidade/sobrecarga): a leitura tenta outro modelo.
 ERROS_TEMPORARIOS = (500, 502, 503, 504)
 
 # Tempo máximo de uma leitura inteira (incluindo novas tentativas e modelos reserva), em segundos.
@@ -57,9 +57,8 @@ def obter_cliente() -> genai.Client:
         api_key=chave,
         http_options=types.HttpOptions(
             timeout=TEMPO_POR_CHAMADA * 1000,
-            retry_options=types.HttpRetryOptions(
-                attempts=2, initial_delay=2, max_delay=5, http_status_codes=list(ERROS_TEMPORARIOS)
-            ),
+            # Sem novas tentativas no mesmo modelo: com "high demand" o que resolve é trocar de modelo.
+            retry_options=types.HttpRetryOptions(attempts=1),
         ),
     )
 
@@ -205,6 +204,7 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
         return PRAZO_LEITURA - (time.monotonic() - inicio)
 
     fila: list[tuple[str, bool]] = [(principal, True)]
+    tentados: list[str] = []
     reservas_na_fila = False
     primeiro_erro: Exception | None = None
     ultimo_erro: Exception | None = None
@@ -212,9 +212,10 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
     modelo = principal
 
     while fila and resposta is None:
-        if ultimo_erro is not None and restante() < 15:
+        if ultimo_erro is not None and restante() < 10:
             break
         tentativa, com_schema = fila.pop(0)
+        tentados.append(tentativa)
         try:
             resposta = _gerar(cliente, tentativa, blocos, com_schema, min(TEMPO_POR_CHAMADA, restante()))
             modelo = tentativa
@@ -238,12 +239,14 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
                 continue
             if not _temporario(exc):
                 break
-            if com_schema and codigo != 429:
-                fila.insert(0, (tentativa, False))  # plano B: mesmo modelo, sem schema
+            if com_schema and codigo not in (429, 503):
+                # Plano B no mesmo modelo, sem schema (erro interno ou demora). Com 503 ("high demand")
+                # ou 429 (cota) o problema é do modelo inteiro: vai direto para outro.
+                fila.insert(0, (tentativa, False))
             if not reservas_na_fila:
                 reservas_na_fila = True
                 try:
-                    outros = [m for m in modelos_disponiveis(cliente) if m != tentativa][:4]
+                    outros = [m for m in modelos_disponiveis(cliente) if m != tentativa][:6]
                 except Exception:  # sem lista de modelos: fica só com o que já está na fila
                     outros = []
                 fila.extend((m, False) for m in outros)
@@ -252,7 +255,10 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
 
     if resposta is None:
         if isinstance(ultimo_erro, errors.APIError):
-            raise _erro_api(ultimo_erro) from ultimo_erro
+            erro = _erro_api(ultimo_erro)
+            if len(set(tentados)) > 1:
+                erro.args = (f"{erro.args[0]} Modelos tentados: {', '.join(dict.fromkeys(tentados))}.",)
+            raise erro from ultimo_erro
         log.warning("Gemini não respondeu dentro do prazo (%s).", modelo)
         raise IAIndisponivel(
             "O Gemini (Google) não respondeu a tempo. Isso é do lado do Google; tente de novo daqui a pouco. "
