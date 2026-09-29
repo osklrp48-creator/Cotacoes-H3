@@ -152,16 +152,26 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
     return IAIndisponivel("O serviço de IA está indisponível no momento. Tente novamente em instantes. " + detalhe)
 
 
-def _gerar(cliente, modelo: str, blocos: list[dict], segundos: float = TEMPO_POR_CHAMADA):
+CAMPOS_SEM_SCHEMA = (
+    "\n\nFormato da resposta: um único objeto JSON com exatamente estas chaves: "
+    + json.dumps({k: 0 if k == "valorFrete" else "" for k in SCHEMA["properties"] if k != "itens"}, ensure_ascii=False)[:-1]
+    + ', "itens": [{"produto": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0}]}. '
+    "Números como número JSON (ponto decimal), textos como string."
+)
+
+
+def _gerar(cliente, modelo: str, blocos: list[dict], com_schema: bool = True, segundos: float = TEMPO_POR_CHAMADA):
+    """Pede a leitura ao Gemini. Sem schema (plano B), o formato vai só nas instruções."""
+    extras = {"response_json_schema": SCHEMA} if com_schema else {}
     return cliente.models.generate_content(
         model=modelo,
         contents=_partes(blocos),
         config=types.GenerateContentConfig(
-            system_instruction=INSTRUCOES,
+            system_instruction=INSTRUCOES if com_schema else INSTRUCOES + CAMPOS_SEM_SCHEMA,
             response_mime_type="application/json",
-            response_json_schema=SCHEMA,
             max_output_tokens=16000,
             http_options=types.HttpOptions(timeout=int(segundos * 1000)),
+            **extras,
         ),
     )
 
@@ -177,68 +187,75 @@ def _temporario(exc: Exception) -> bool:
 
 
 def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
+    """Tenta, em ordem e dentro do prazo: modelo atual com schema; se falhar por instabilidade, o mesmo
+    modelo sem schema (plano B); depois outros modelos "Flash" da chave, também sem schema."""
     global _modelo_descoberto
     cliente = obter_cliente()
-    modelo = modelo_em_uso()
+    principal = modelo_em_uso()
     inicio = time.monotonic()
 
     def restante() -> float:
         return PRAZO_LEITURA - (time.monotonic() - inicio)
 
-    try:
+    fila: list[tuple[str, bool]] = [(principal, True)]
+    reservas_na_fila = False
+    primeiro_erro: Exception | None = None
+    ultimo_erro: Exception | None = None
+    resposta = None
+    modelo = principal
+
+    while fila and resposta is None:
+        if ultimo_erro is not None and restante() < 15:
+            break
+        tentativa, com_schema = fila.pop(0)
         try:
-            resposta = _gerar(cliente, modelo, blocos)
-        except errors.APIError as exc:
-            if exc.code != 404:
-                raise
-            # O Google aposentou o modelo: escolhe sozinho o "Flash" disponível mais novo e tenta de novo.
-            novo = descobrir_modelo(cliente)
-            if not novo or novo == modelo:
-                raise
-            _modelo_descoberto = modelo = novo
-            resposta = _gerar(cliente, modelo, blocos, min(TEMPO_POR_CHAMADA, restante()))
-    except (errors.APIError, httpx.TimeoutException) as exc:
-        if not _temporario(exc):
-            if isinstance(exc, errors.APIError):
-                raise _erro_api(exc) from exc
-            raise
-        # Modelo sobrecarregado ou lento: tenta outros "Flash" da chave enquanto houver tempo.
-        log.warning(
-            "Gemini %s falhou (%s: %s); tentando outro modelo.",
-            modelo, getattr(exc, "code", "timeout"), (getattr(exc, "message", "") or "")[:300],
-        )
-        resposta = None
-        ultimo_erro: Exception = exc
-        try:
-            reservas = [m for m in modelos_disponiveis(cliente) if m != modelo][:3]
-        except Exception:  # sem lista de modelos: fica só com o erro original
-            reservas = []
-        for reserva in reservas:
-            if restante() < 15:
+            resposta = _gerar(cliente, tentativa, blocos, com_schema, min(TEMPO_POR_CHAMADA, restante()))
+            modelo = tentativa
+        except (errors.APIError, httpx.TimeoutException) as exc:
+            primeiro_erro = primeiro_erro or exc
+            ultimo_erro = exc
+            codigo = getattr(exc, "code", "timeout")
+            log.warning(
+                "Gemini %s (schema=%s) falhou: %s %s", tentativa, com_schema, codigo,
+                (getattr(exc, "message", "") or "")[:300],
+            )
+            if codigo == 404:
+                # O Google aposentou o modelo: escolhe sozinho o "Flash" disponível mais novo.
+                if tentativa == principal:
+                    try:
+                        novo = descobrir_modelo(cliente)
+                    except Exception:
+                        novo = None
+                    if novo and novo != tentativa:
+                        fila.insert(0, (novo, True))
+                continue
+            if not _temporario(exc):
                 break
-            try:
-                resposta = _gerar(cliente, reserva, blocos, min(TEMPO_POR_CHAMADA, restante()))
-                if isinstance(exc, errors.APIError) and exc.code == 429:
-                    # Cota do modelo principal esgotada: segue no que funcionou até o servidor reiniciar.
-                    _modelo_descoberto = reserva
-                modelo = reserva
-                break
-            except (errors.APIError, httpx.TimeoutException) as exc_reserva:
-                if not _temporario(exc_reserva):
-                    ultimo_erro = exc_reserva
-                    break
-                ultimo_erro = exc_reserva
-        if resposta is None:
-            if isinstance(ultimo_erro, errors.APIError):
-                raise _erro_api(ultimo_erro) from ultimo_erro
-            log.warning("Gemini não respondeu dentro do prazo (%s).", modelo)
-            raise IAIndisponivel(
-                "O Gemini (Google) não respondeu a tempo. Isso é do lado do Google; tente de novo daqui a pouco. "
-                "Se continuar, use Admin → Uso da IA → Testar a IA.",
-                504,
-            ) from ultimo_erro
-    except httpx.HTTPError as exc:
-        raise IAIndisponivel("Não foi possível falar com o serviço de IA. Tente novamente em instantes.") from exc
+            if com_schema and codigo != 429:
+                fila.insert(0, (tentativa, False))  # plano B: mesmo modelo, sem schema
+            if not reservas_na_fila:
+                reservas_na_fila = True
+                try:
+                    outros = [m for m in modelos_disponiveis(cliente) if m != tentativa][:3]
+                except Exception:  # sem lista de modelos: fica só com o que já está na fila
+                    outros = []
+                fila.extend((m, False) for m in outros)
+        except httpx.HTTPError as exc:
+            raise IAIndisponivel("Não foi possível falar com o serviço de IA. Tente novamente em instantes.") from exc
+
+    if resposta is None:
+        if isinstance(ultimo_erro, errors.APIError):
+            raise _erro_api(ultimo_erro) from ultimo_erro
+        log.warning("Gemini não respondeu dentro do prazo (%s).", modelo)
+        raise IAIndisponivel(
+            "O Gemini (Google) não respondeu a tempo. Isso é do lado do Google; tente de novo daqui a pouco. "
+            "Se continuar, use Admin → Uso da IA → Testar a IA.",
+            504,
+        ) from ultimo_erro
+
+    if modelo != principal and isinstance(primeiro_erro, errors.APIError) and primeiro_erro.code in (404, 429):
+        # Modelo principal aposentado ou sem cota: segue no que funcionou até o servidor reiniciar.
+        _modelo_descoberto = modelo
 
     uso = resposta.usage_metadata
     entrada = int(getattr(uso, "prompt_token_count", 0) or 0)
@@ -252,8 +269,10 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
             IAIndisponivel("A cotação é grande demais para ler de uma vez. Divida o arquivo e tente de novo.", 422),
             entrada, saida,
         )
+    texto = (resposta.text or "").strip()
+    texto = re.sub(r"^```(?:json)?\s*|\s*```$", "", texto)
     try:
-        dados = json.loads(resposta.text or "")
+        dados = json.loads(texto)
     except (ValueError, TypeError):
         dados = None
     if not isinstance(dados, dict):
@@ -305,4 +324,23 @@ def diagnosticar() -> dict:
         "modelo_em_uso": modelo_em_uso(),
         "erro_listagem": erro_lista,
         "resultados": resultados,
+        "teste_leitura": _testar_leitura(cliente, modelo_em_uso()) if ok else None,
     }
+
+
+def _testar_leitura(cliente, modelo: str) -> dict:
+    """Uma leitura de verdade (curta), com e sem schema, para ver qual jeito o Google aceita."""
+    blocos = [{"type": "text", "text": "Cotação: Dipirona 500mg cx 10 unidades R$ 12,50 - Distribuidora Alfa"}]
+    resultado = {"modelo": modelo}
+    for nome, com_schema in (("com_formato", True), ("sem_formato", False)):
+        inicio = time.monotonic()
+        try:
+            _gerar(cliente, modelo, blocos, com_schema, 40)
+            resultado[nome] = {"ok": True, "segundos": round(time.monotonic() - inicio, 1), "erro": ""}
+        except errors.APIError as exc:
+            resultado[nome] = {"ok": False, "segundos": round(time.monotonic() - inicio, 1),
+                               "erro": f"{exc.code} {exc.status or ''}: {(exc.message or '')[:200]}"}
+        except httpx.HTTPError as exc:
+            resultado[nome] = {"ok": False, "segundos": round(time.monotonic() - inicio, 1),
+                               "erro": f"sem resposta: {type(exc).__name__}"}
+    return resultado

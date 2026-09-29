@@ -336,11 +336,25 @@ interface ResultadoTeste {
   segundos: number
   erro: string
 }
+interface TesteFormato {
+  ok: boolean
+  segundos: number
+  erro: string
+}
 interface Diagnostico {
   modelo_antes: string
   modelo_em_uso: string
   erro_listagem: string
   resultados: ResultadoTeste[]
+  teste_leitura: { modelo: string; com_formato: TesteFormato; sem_formato: TesteFormato } | null
+}
+
+function LinhaFormato({ nome, t }: { nome: string; t: TesteFormato }) {
+  return (
+    <div>
+      {t.ok ? '✅' : '❌'} {nome}: {t.ok ? `funcionou (${t.segundos.toLocaleString('pt-BR')} s)` : t.erro}
+    </div>
+  )
 }
 
 function TestarIA() {
@@ -353,7 +367,7 @@ function TestarIA() {
     setErro('')
     setDiag(null)
     try {
-      setDiag(await api<Diagnostico>('/admin/ia/testar', { metodo: 'POST', limiteMs: 90_000 }))
+      setDiag(await api<Diagnostico>('/admin/ia/testar', { metodo: 'POST', limiteMs: 150_000 }))
     } catch (e) {
       setErro((e as Error).message)
     } finally {
@@ -365,7 +379,7 @@ function TestarIA() {
     <div className="cartao">
       <h2>Testar a IA</h2>
       <p className="fraco" style={{ marginTop: 0 }}>
-        Verifica quais modelos do Gemini a sua chave consegue usar agora e passa a usar o melhor que responder. Leva até 30 segundos.
+        Verifica quais modelos do Gemini a sua chave consegue usar agora, faz uma leitura de teste e passa a usar o melhor modelo que responder. Leva até 1 minuto.
       </p>
       <button className="btn btn-primario" onClick={testar} disabled={testando}>
         {testando ? (
@@ -409,6 +423,13 @@ function TestarIA() {
               ))}
             </tbody>
           </table>
+          {diag.teste_leitura && (
+            <div className="alerta alerta-ia" style={{ marginTop: 12 }}>
+              <strong>Leitura de teste com {diag.teste_leitura.modelo}</strong>
+              <LinhaFormato nome="Com estrutura de campos" t={diag.teste_leitura.com_formato} />
+              <LinhaFormato nome="Sem estrutura (plano B)" t={diag.teste_leitura.sem_formato} />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -210,7 +210,10 @@ def test_sobrecarga_usa_modelo_reserva(cliente, monkeypatch, usar_gemini, db):
     monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 200, r.text
-    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
+    # Plano B no mesmo modelo (sem schema) e depois o modelo reserva.
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-flash-latest", "gemini-3-flash"]
+    assert [c["config"].response_json_schema is not None for c in falso.chamadas] == [True, False, False]
+    assert "exatamente estas chaves" in falso.chamadas[-1]["config"].system_instruction
     assert db.query(UsoIA).one().modelo == "gemini-3-flash"
     # Sobrecarga é temporária: a próxima leitura volta a tentar o modelo principal.
     assert gemini.modelo_em_uso() == "gemini-flash-latest"
@@ -257,7 +260,7 @@ def test_leitura_tem_prazo_maximo(cliente, monkeypatch, usar_gemini):
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 504
     assert "não respondeu a tempo" in r.json()["detail"]
-    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-flash-latest", "gemini-3-flash"]
     assert falso.chamadas[0]["config"].http_options.timeout == 60_000
 
 
@@ -291,3 +294,33 @@ def test_cota_esgotada_em_todos_mostra_limite(cliente, monkeypatch, usar_gemini)
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 429
     assert "todos os modelos" in r.json()["detail"] and "cota do Google: 0" in r.json()["detail"]
+
+
+
+class GeminiRecusaSchema(GeminiComModeloAposentado):
+    """Responde 503 sempre que a chamada leva schema; sem schema, funciona (e cerca o JSON com ```)."""
+
+    def generate_content(self, **kwargs):
+        self.chamadas.append(kwargs)
+        if kwargs["config"].response_json_schema is not None:
+            raise errors.ServerError(503, {"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}})
+        if kwargs["contents"] == "Responda apenas com a palavra OK.":
+            return _resposta("OK")
+        return _resposta("```json\n" + json.dumps(RESPOSTA) + "\n```")
+
+
+def test_plano_b_sem_schema_no_mesmo_modelo(cliente, monkeypatch, usar_gemini):
+    falso = GeminiRecusaSchema(["gemini-flash-latest", "gemini-3-flash"])
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 200, r.text
+    assert r.json()["fornecedor"] == "João (WhatsApp)"
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-flash-latest"]
+
+
+def test_diagnostico_mostra_se_o_formato_funciona(admin, monkeypatch, usar_gemini):
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiRecusaSchema(["gemini-flash-latest"]))
+    d = admin.post("/api/admin/ia/testar").json()
+    teste = d["teste_leitura"]
+    assert teste["com_formato"]["ok"] is False and "503" in teste["com_formato"]["erro"]
+    assert teste["sem_formato"]["ok"] is True
