@@ -15,6 +15,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login", response_model=UsuarioOut)
 def login(dados: LoginIn, response: Response, db: Session = Depends(get_db)):
     usuario = db.scalar(select(Usuario).where(func.lower(Usuario.email) == dados.email.strip().lower()))
+    if not usuario and not db.scalar(select(func.count(Usuario.id))):
+        # Banco sem nenhum usuário: o admin inicial ainda não foi criado (hospedagem sem terminal).
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Nenhum usuário foi criado ainda. No Render, confira ADMIN_EMAIL e ADMIN_SENHA "
+            "(a senha precisa ter pelo menos 8 caracteres) e salve para o sistema reiniciar.",
+        )
     if not usuario or not verificar_senha(dados.senha, usuario.senha_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail ou senha incorretos.")
     if not usuario.ativo:

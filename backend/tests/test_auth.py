@@ -1,3 +1,10 @@
+def test_login_sem_nenhum_usuario_explica_o_que_fazer(anonimo):
+    r = anonimo.post("/api/auth/login", json={"email": "admin@h3.com.br", "senha": "qualquer"})
+    assert r.status_code == 401
+    assert "Nenhum usuário foi criado" in r.json()["detail"]
+    assert "8 caracteres" in r.json()["detail"]
+
+
 def test_login_errado(anonimo, usuarios):
     r = anonimo.post("/api/auth/login", json={"email": "admin@h3.com.br", "senha": "errada"})
     assert r.status_code == 401
