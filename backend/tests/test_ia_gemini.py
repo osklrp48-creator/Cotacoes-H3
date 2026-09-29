@@ -189,3 +189,43 @@ def test_modelo_aposentado_sem_alternativa(cliente, monkeypatch, usar_gemini):
     r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
     assert r.status_code == 503
     assert "Nenhum modelo Gemini Flash disponível" in r.json()["detail"]
+
+
+class GeminiSobrecarregado(GeminiComModeloAposentado):
+    """O modelo principal responde 503 (sobrecarga); os outros funcionam."""
+
+    def __init__(self, disponiveis, sobrecarregados):
+        super().__init__(disponiveis)
+        self.sobrecarregados = sobrecarregados
+
+    def generate_content(self, **kwargs):
+        if kwargs["model"] in self.sobrecarregados:
+            self.chamadas.append(kwargs)
+            raise errors.ServerError(503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}})
+        return super().generate_content(**kwargs)
+
+
+def test_sobrecarga_usa_modelo_reserva(cliente, monkeypatch, usar_gemini, db):
+    falso = GeminiSobrecarregado(["gemini-flash-latest", "gemini-3-flash"], {"gemini-flash-latest"})
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 200, r.text
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
+    assert db.query(UsoIA).one().modelo == "gemini-3-flash"
+    # Sobrecarga é temporária: a próxima leitura volta a tentar o modelo principal.
+    assert gemini.modelo_em_uso() == "gemini-flash-latest"
+
+
+def test_sobrecarga_em_todos_explica_que_e_do_google(cliente, monkeypatch, usar_gemini):
+    todos = {"gemini-flash-latest", "gemini-3-flash"}
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: GeminiSobrecarregado(list(todos), todos))
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 502
+    detalhe = r.json()["detail"]
+    assert "sobrecarregado" in detalhe and "503 UNAVAILABLE" in detalhe
+
+
+def test_cliente_tenta_de_novo_em_erros_temporarios():
+    cliente = gemini.obter_cliente()
+    retry = cliente._api_client._http_options.retry_options
+    assert retry.attempts == 3 and 503 in retry.http_status_codes and 429 not in retry.http_status_codes

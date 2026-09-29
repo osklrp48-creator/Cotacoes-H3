@@ -3,6 +3,7 @@
 import base64
 import copy
 import json
+import logging
 import re
 
 import httpx
@@ -36,12 +37,25 @@ def _schema() -> dict:
 
 SCHEMA = _schema()
 
+log = logging.getLogger("cotacoes.ia")
+
+# Erros temporários do lado do Google (instabilidade/sobrecarga): o SDK tenta de novo sozinho.
+ERROS_TEMPORARIOS = (500, 502, 503, 504)
+
 
 def obter_cliente() -> genai.Client:
     chave = get_settings().gemini_api_key
     if not chave:
         raise IAIndisponivel("A leitura com IA não está configurada no servidor (falta a GEMINI_API_KEY).", 503)
-    return genai.Client(api_key=chave, http_options=types.HttpOptions(timeout=180_000))
+    return genai.Client(
+        api_key=chave,
+        http_options=types.HttpOptions(
+            timeout=180_000,
+            retry_options=types.HttpRetryOptions(
+                attempts=3, initial_delay=2, max_delay=10, http_status_codes=list(ERROS_TEMPORARIOS)
+            ),
+        ),
+    )
 
 
 # Modelo descoberto automaticamente quando o configurado em GEMINI_MODEL não existe mais.
@@ -67,15 +81,21 @@ def _prioridade(nome: str) -> tuple:
     )
 
 
-def descobrir_modelo(cliente) -> str | None:
-    """Pergunta ao Google quais modelos "Flash" esta chave pode usar e escolhe o melhor."""
+def modelos_disponiveis(cliente) -> list[str]:
+    """Modelos "Flash" que esta chave pode usar, do melhor para o pior."""
     candidatos = []
     for modelo in cliente.models.list():
         nome = (modelo.name or "").removeprefix("models/")
         acoes = modelo.supported_actions or []
         if "flash" in nome and "generateContent" in acoes and not any(x in nome for x in _EXCLUIR):
             candidatos.append(nome)
-    return max(candidatos, key=_prioridade) if candidatos else None
+    return sorted(candidatos, key=_prioridade, reverse=True)
+
+
+def descobrir_modelo(cliente) -> str | None:
+    """Pergunta ao Google quais modelos "Flash" esta chave pode usar e escolhe o melhor."""
+    disponiveis = modelos_disponiveis(cliente)
+    return disponiveis[0] if disponiveis else None
 
 
 def _partes(blocos: list[dict]) -> list:
@@ -94,6 +114,8 @@ def _partes(blocos: list[dict]) -> list:
 def _erro_api(exc: errors.APIError) -> IAIndisponivel:
     codigo = exc.code or 0
     texto = f"{exc.status or ''} {exc.message or ''}".lower()
+    detalhe = f"(detalhe técnico: {codigo} {exc.status or ''})".replace(" )", ")")
+    log.warning("Erro do Gemini com o modelo %s: %s %s - %s", modelo_em_uso(), codigo, exc.status, exc.message)
     if codigo in (401, 403) or "api key" in texto or "api_key" in texto:
         return IAIndisponivel("A chave do Gemini é inválida ou sem permissão. Avise o administrador.", 503)
     if codigo == 404:
@@ -110,9 +132,16 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
         )
     if codigo == 400:
         return IAIndisponivel(
-            "A IA não conseguiu processar esse arquivo. Tente outro formato (PDF ou imagem) ou cole o texto.", 422
+            "A IA não conseguiu processar esse arquivo. Tente outro formato (PDF ou imagem) ou cole o texto. "
+            + detalhe,
+            422,
         )
-    return IAIndisponivel("O serviço de IA está indisponível no momento. Tente novamente em instantes.")
+    if codigo in ERROS_TEMPORARIOS:
+        return IAIndisponivel(
+            "O Gemini (Google) está sobrecarregado ou instável agora. Isso é do lado do Google e costuma passar "
+            "em poucos minutos: tente de novo daqui a pouco. " + detalhe
+        )
+    return IAIndisponivel("O serviço de IA está indisponível no momento. Tente novamente em instantes. " + detalhe)
 
 
 def _gerar(cliente, modelo: str, blocos: list[dict]):
@@ -136,14 +165,29 @@ def ler_com_gemini(blocos: list[dict]) -> ResultadoIA:
         try:
             resposta = _gerar(cliente, modelo, blocos)
         except errors.APIError as exc:
-            if exc.code != 404:
+            if exc.code == 404:
+                # O Google aposentou o modelo: escolhe sozinho o "Flash" disponível mais novo e tenta de novo.
+                novo = descobrir_modelo(cliente)
+                if not novo or novo == modelo:
+                    raise
+                _modelo_descoberto = modelo = novo
+                resposta = _gerar(cliente, modelo, blocos)
+            elif exc.code in ERROS_TEMPORARIOS:
+                # Modelo sobrecarregado mesmo depois das novas tentativas: tenta outros Flash disponíveis.
+                log.warning("Gemini %s sobrecarregado (%s); tentando outro modelo.", modelo, exc.code)
+                resposta = None
+                for reserva in [m for m in modelos_disponiveis(cliente) if m != modelo][:2]:
+                    try:
+                        resposta = _gerar(cliente, reserva, blocos)
+                        modelo = reserva
+                        break
+                    except errors.APIError as exc_reserva:
+                        if exc_reserva.code not in ERROS_TEMPORARIOS:
+                            raise
+                if resposta is None:
+                    raise
+            else:
                 raise
-            # O Google aposentou o modelo: escolhe sozinho o "Flash" disponível mais novo e tenta de novo.
-            novo = descobrir_modelo(cliente)
-            if not novo or novo == modelo:
-                raise
-            _modelo_descoberto = modelo = novo
-            resposta = _gerar(cliente, modelo, blocos)
     except errors.APIError as exc:
         raise _erro_api(exc) from exc
     except httpx.TimeoutException as exc:
