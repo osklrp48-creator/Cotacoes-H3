@@ -228,4 +228,34 @@ def test_sobrecarga_em_todos_explica_que_e_do_google(cliente, monkeypatch, usar_
 def test_cliente_tenta_de_novo_em_erros_temporarios():
     cliente = gemini.obter_cliente()
     retry = cliente._api_client._http_options.retry_options
-    assert retry.attempts == 3 and 503 in retry.http_status_codes and 429 not in retry.http_status_codes
+    assert retry.attempts == 2 and 503 in retry.http_status_codes and 429 not in retry.http_status_codes
+
+
+def test_diagnostico_escolhe_modelo_que_responde(admin, cliente, monkeypatch, usar_gemini):
+    falso = GeminiSobrecarregado(["gemini-flash-latest", "gemini-3-flash", "gemini-3.1-flash-lite"], {"gemini-flash-latest"})
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+    r = admin.post("/api/admin/ia/testar")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    resultados = {x["modelo"]: x for x in d["resultados"]}
+    assert resultados["gemini-flash-latest"]["ok"] is False and "503" in resultados["gemini-flash-latest"]["erro"]
+    assert resultados["gemini-3-flash"]["ok"] is True
+    assert d["modelo_antes"] == "gemini-flash-latest" and d["modelo_em_uso"] == "gemini-3-flash"
+    assert cliente.post("/api/admin/ia/testar").status_code == 403
+
+
+def test_leitura_tem_prazo_maximo(cliente, monkeypatch, usar_gemini):
+    import httpx
+
+    class Lento(GeminiComModeloAposentado):
+        def generate_content(self, **kwargs):
+            self.chamadas.append(kwargs)
+            raise httpx.ReadTimeout("demorou")
+
+    falso = Lento(["gemini-flash-latest", "gemini-3-flash"])
+    monkeypatch.setattr(gemini, "obter_cliente", lambda: falso)
+    r = cliente.post("/api/ia/ler-cotacao", data={"texto": "x"})
+    assert r.status_code == 504
+    assert "não respondeu a tempo" in r.json()["detail"]
+    assert [c["model"] for c in falso.chamadas] == ["gemini-flash-latest", "gemini-3-flash"]
+    assert falso.chamadas[0]["config"].http_options.timeout == 60_000

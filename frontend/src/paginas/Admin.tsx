@@ -330,6 +330,91 @@ function TabelaUso({ titulo, linhas }: { titulo: string; linhas: LinhaUso[] }) {
   )
 }
 
+interface ResultadoTeste {
+  modelo: string
+  ok: boolean
+  segundos: number
+  erro: string
+}
+interface Diagnostico {
+  modelo_antes: string
+  modelo_em_uso: string
+  erro_listagem: string
+  resultados: ResultadoTeste[]
+}
+
+function TestarIA() {
+  const [testando, setTestando] = useState(false)
+  const [diag, setDiag] = useState<Diagnostico | null>(null)
+  const [erro, setErro] = useState('')
+
+  async function testar() {
+    setTestando(true)
+    setErro('')
+    setDiag(null)
+    try {
+      setDiag(await api<Diagnostico>('/admin/ia/testar', { metodo: 'POST', limiteMs: 90_000 }))
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally {
+      setTestando(false)
+    }
+  }
+
+  return (
+    <div className="cartao">
+      <h2>Testar a IA</h2>
+      <p className="fraco" style={{ marginTop: 0 }}>
+        Verifica quais modelos do Gemini a sua chave consegue usar agora e passa a usar o melhor que responder. Leva até 30 segundos.
+      </p>
+      <button className="btn btn-primario" onClick={testar} disabled={testando}>
+        {testando ? (
+          <>
+            <span className="girando" /> Testando…
+          </>
+        ) : (
+          'Testar a IA'
+        )}
+      </button>
+      {erro && <div className="alerta alerta-erro">{erro}</div>}
+      {diag && (
+        <div style={{ marginTop: 14 }}>
+          {diag.erro_listagem && <div className="alerta alerta-erro">{diag.erro_listagem}</div>}
+          <div className={`alerta ${diag.resultados.some((r) => r.ok) ? 'alerta-ok' : 'alerta-erro'}`}>
+            {diag.resultados.some((r) => r.ok)
+              ? `Modelo em uso: ${diag.modelo_em_uso}${diag.modelo_em_uso !== diag.modelo_antes ? ` (trocado de ${diag.modelo_antes})` : ''}.`
+              : 'Nenhum modelo respondeu agora. Veja os erros abaixo e me envie um print desta tela.'}
+          </div>
+          <table className="tabela responsiva">
+            <thead>
+              <tr>
+                <th>Modelo</th>
+                <th>Resultado</th>
+                <th className="num">Tempo</th>
+                <th>Erro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diag.resultados.map((r) => (
+                <tr key={r.modelo}>
+                  <td className="principal">{r.modelo}</td>
+                  <td data-rotulo="Resultado">{r.ok ? '✅ Respondeu' : '❌ Falhou'}</td>
+                  <td data-rotulo="Tempo" className="num">
+                    {r.segundos.toLocaleString('pt-BR')} s
+                  </td>
+                  <td data-rotulo="Erro" className="fraco">
+                    {r.erro || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UsoIA() {
   const [de, setDe] = useState(hoje().slice(0, 8) + '01')
   const [ate, setAte] = useState(hoje())
@@ -343,6 +428,7 @@ function UsoIA() {
 
   return (
     <>
+      <TestarIA />
       <div className="cartao">
         <div className="filtros" style={{ marginBottom: 0 }}>
           <label className="campo">

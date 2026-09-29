@@ -171,7 +171,13 @@ const MENSAGENS: Record<number, string> = {
 
 export async function api<T = unknown>(
   caminho: string,
-  opcoes: { metodo?: string; corpo?: unknown; params?: Record<string, string | number | undefined | null> } = {},
+  opcoes: {
+    metodo?: string
+    corpo?: unknown
+    params?: Record<string, string | number | undefined | null>
+    /** Desiste depois deste tempo (ms) com uma mensagem clara. */
+    limiteMs?: number
+  } = {},
 ): Promise<T> {
   const url = new URL('/api' + caminho, window.location.origin)
   for (const [k, v] of Object.entries(opcoes.params ?? {})) {
@@ -185,11 +191,19 @@ export async function api<T = unknown>(
     ;(init.headers as Record<string, string>)['Content-Type'] = 'application/json'
   }
 
+  const controle = new AbortController()
+  const relogio = opcoes.limiteMs ? setTimeout(() => controle.abort(), opcoes.limiteMs) : undefined
+  init.signal = controle.signal
   let resp: Response
   try {
     resp = await fetch(url, init)
   } catch {
+    if (controle.signal.aborted) {
+      throw new ErroApi('Demorou demais para responder. Tente de novo daqui a pouco.', 0)
+    }
     throw new ErroApi('Sem conexão com o servidor. Verifique sua internet e tente de novo.', 0)
+  } finally {
+    clearTimeout(relogio)
   }
   if (resp.status === 204) return undefined as T
   const dados = await resp.json().catch(() => null)

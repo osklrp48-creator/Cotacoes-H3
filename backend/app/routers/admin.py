@@ -107,3 +107,16 @@ def importar(
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return asdict(resumo)
+
+
+@router.post("/ia/testar")
+def testar_ia(_: Usuario = Depends(somente_admin)):
+    """Testa os modelos do Gemini disponíveis para a chave e passa a usar o melhor que responder."""
+    if get_settings().ia_provedor != "gemini":
+        raise HTTPException(422, "O teste automático está disponível só para o Gemini (IA_PROVEDOR=gemini).")
+    from ..services.ia import gemini
+
+    try:
+        return gemini.diagnosticar()
+    except leitor.IAIndisponivel as exc:
+        raise HTTPException(exc.status, str(exc)) from exc

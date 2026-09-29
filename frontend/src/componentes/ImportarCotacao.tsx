@@ -53,7 +53,7 @@ export default function ImportarCotacao({ aoLer }: { aoLer: (dados: LeituraIA) =
     else corpo.append('texto', texto)
     setLendo(true)
     try {
-      const dados = await api<LeituraIA>('/ia/ler-cotacao', { metodo: 'POST', corpo })
+      const dados = await api<LeituraIA>('/ia/ler-cotacao', { metodo: 'POST', corpo, limiteMs: 150_000 })
       aoLer(dados)
       setArquivo(null)
       setTexto('')
@@ -132,7 +132,7 @@ export default function ImportarCotacao({ aoLer }: { aoLer: (dados: LeituraIA) =
             'Ler cotação'
           )}
         </button>
-        {lendo && <span className="fraco">Isso pode levar até um minuto.</span>}
+        {lendo && <span className="fraco">Isso costuma levar menos de um minuto (no máximo dois).</span>}
       </div>
     </section>
   )
