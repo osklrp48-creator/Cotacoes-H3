@@ -8,13 +8,14 @@ from ..config import get_settings
 from ..db import get_db
 from ..deps import somente_admin
 from ..models import Unidade, UsoIA, Usuario
+from ..services.ia import leitor
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def _custo(entrada: int, saida: int) -> float:
-    s = get_settings()
-    return round(entrada / 1_000_000 * s.ia_preco_entrada_mtok + saida / 1_000_000 * s.ia_preco_saida_mtok, 4)
+    preco_entrada, preco_saida = get_settings().precos_ia()
+    return round(entrada / 1_000_000 * preco_entrada + saida / 1_000_000 * preco_saida, 4)
 
 
 @router.get("/uso-ia")
@@ -68,9 +69,10 @@ def uso_ia(
     return {
         "de": de,
         "ate": ate,
-        "modelo": get_settings().anthropic_model,
-        "preco_entrada_mtok": get_settings().ia_preco_entrada_mtok,
-        "preco_saida_mtok": get_settings().ia_preco_saida_mtok,
+        "provedor": get_settings().ia_provedor,
+        "modelo": leitor.modelo_atual(),
+        "preco_entrada_mtok": get_settings().precos_ia()[0],
+        "preco_saida_mtok": get_settings().precos_ia()[1],
         "total": linha("Total", total),
         "por_usuario": [linha(r.nome, r) for r in por_usuario],
         "por_unidade": [linha(r.nome, r) for r in por_unidade],

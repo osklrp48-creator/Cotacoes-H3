@@ -90,6 +90,7 @@ class ResultadoIA:
     dados: dict
     tokens_entrada: int
     tokens_saida: int
+    modelo: str = ""
 
 
 def obter_cliente() -> anthropic.Anthropic:
@@ -162,7 +163,21 @@ def normalizar_resposta(bruto: dict) -> dict:
     return dados
 
 
+def modelo_atual() -> str:
+    s = get_settings()
+    return s.gemini_model if s.ia_provedor == "gemini" else s.anthropic_model
+
+
 def ler_cotacao(blocos: list[dict]) -> ResultadoIA:
+    """Lê a cotação com o provedor configurado em IA_PROVEDOR (gemini ou anthropic)."""
+    if get_settings().ia_provedor == "gemini":
+        from . import gemini
+
+        return gemini.ler_com_gemini(blocos)
+    return ler_com_anthropic(blocos)
+
+
+def ler_com_anthropic(blocos: list[dict]) -> ResultadoIA:
     cliente = obter_cliente()
     s = get_settings()
     try:
@@ -204,17 +219,17 @@ def ler_cotacao(blocos: list[dict]) -> ResultadoIA:
         (b for b in resposta.content if getattr(b, "type", None) == "tool_use" and b.name == NOME_FERRAMENTA), None
     )
     if bloco is None or not isinstance(bloco.input, dict):
-        raise _com_uso(IAIndisponivel("A IA não conseguiu ler essa cotação. Confira o arquivo e tente de novo."),
+        raise com_uso(IAIndisponivel("A IA não conseguiu ler essa cotação. Confira o arquivo e tente de novo."),
                        entrada, saida)
     if resposta.stop_reason == "max_tokens":
-        raise _com_uso(
+        raise com_uso(
             IAIndisponivel("A cotação é grande demais para ler de uma vez. Divida o arquivo e tente de novo.", 422),
             entrada, saida,
         )
-    return ResultadoIA(normalizar_resposta(bloco.input), entrada, saida)
+    return ResultadoIA(normalizar_resposta(bloco.input), entrada, saida, s.anthropic_model)
 
 
-def _com_uso(erro: IAIndisponivel, entrada: int, saida: int) -> IAIndisponivel:
+def com_uso(erro: IAIndisponivel, entrada: int, saida: int) -> IAIndisponivel:
     erro.tokens_entrada = entrada  # type: ignore[attr-defined]
     erro.tokens_saida = saida  # type: ignore[attr-defined]
     return erro

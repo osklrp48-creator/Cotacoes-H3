@@ -1,11 +1,11 @@
 # Cotações H3
 
-Histórico dos preços que os fornecedores passam para a **H3 Pharma Comércio e Serviços Ltda.**, usado por todas as unidades, com leitura de cotações por IA (Anthropic).
+Histórico dos preços que os fornecedores passam para a **H3 Pharma Comércio e Serviços Ltda.**, usado por todas as unidades, com leitura de cotações por IA: **Google Gemini** (padrão, com camada gratuita) ou **Anthropic Claude** (pago por uso).
 
 - **Frontend:** React + Vite + TypeScript (`frontend/`)
 - **Backend:** FastAPI + SQLAlchemy + Alembic (`backend/`)
 - **Banco:** PostgreSQL
-- **IA:** SDK oficial `anthropic` (Python). A chave fica só no servidor.
+- **IA:** SDKs oficiais `google-genai` (Gemini) e `anthropic` (Claude). A chave fica só no servidor.
 
 Em produção, o FastAPI também serve o site compilado. Por isso tudo roda num **único serviço** e num banco.
 
@@ -16,7 +16,7 @@ Em produção, o FastAPI também serve o site compilado. Por isso tudo roda num 
 Pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```bash
-cp .env.example .env            # preencha ANTHROPIC_API_KEY (e SECRET_KEY)
+cp .env.example .env            # preencha GEMINI_API_KEY (e SECRET_KEY)
 docker compose up -d --build
 ```
 
@@ -111,7 +111,7 @@ Os testes cobrem:
 - agrupamento de produtos, estatísticas e exclusões (incluindo registro que fica vazio)
 - renomear e juntar fornecedores
 - importação
-- rota de IA com a API da Anthropic **mockada**: texto, PDF, imagem, .docx com tabelas, .xlsx com várias abas, CSV, recusa de `.doc`, limite de tamanho, erros em português e registro de uso
+- rota de IA com o Gemini e a Anthropic **mockados**: texto, PDF, imagem, .docx com tabelas, .xlsx com várias abas, CSV, recusa de `.doc`, limite de tamanho, erros em português e registro de uso
 
 ## 5. Colocar no ar (sugestão: Render)
 
@@ -119,7 +119,7 @@ O [Render](https://render.com) é uma opção simples: um **Web Service** (Docke
 
 1. Suba o código para o GitHub.
 2. No Render, vá em **New → Blueprint**, escolha o repositório e confirme. O Render cria o banco e o serviço. Confira os planos e preços na hora de criar; para uso interno, os menores planos pagos bastam. Evite o banco gratuito, que expira.
-3. No serviço `cotacoes-h3`, em **Environment**, preencha `ANTHROPIC_API_KEY`. O `SECRET_KEY` é gerado automaticamente e `COOKIE_SECURE=true` já vem definido.
+3. No serviço `cotacoes-h3`, em **Environment**, preencha `GEMINI_API_KEY`. O `SECRET_KEY` é gerado automaticamente e `COOKIE_SECURE=true` já vem definido.
 4. Depois do primeiro deploy, crie o admin e importe os dados de um destes jeitos:
    - pela aba **Shell** do serviço no Render: `python -m app.cli criar-admin ...`
    - ou do seu computador, apontando para o banco do Render. Copie a *External Database URL* e, dentro de `backend/`, rode:
@@ -135,6 +135,18 @@ O [Render](https://render.com) é uma opção simples: um **Web Service** (Docke
 
 Em qualquer uma, defina as mesmas variáveis do `.env.example`.
 
+## 6. Leitura com IA: Gemini (grátis) ou Claude (pago)
+
+**Gemini (padrão):**
+1. Entre em **https://aistudio.google.com/apikey** com uma conta Google e clique em **Create API key**.
+2. Coloque a chave em `GEMINI_API_KEY` (no `.env` ou no Environment do Render). Não precisa de cartão para a camada gratuita.
+3. **Limites:** a camada gratuita tem limite de leituras por minuto e por dia. Quando estoura, o sistema mostra "O limite de uso gratuito do Gemini foi atingido".
+4. **Privacidade:** na camada gratuita, o Google pode usar o que é enviado (as cotações) para melhorar os produtos dele. Se isso não for aceitável, ative o faturamento no Google (camada paga, que não usa os dados assim) ou troque para o Claude.
+
+**Claude (Anthropic):** mude `IA_PROVEDOR=anthropic` e preencha `ANTHROPIC_API_KEY` (crie em console.anthropic.com). Custa perto de 1 a 3 centavos de dólar por cotação; dá para definir um limite mensal de gasto no console.
+
+A troca entre os dois é só nas variáveis de ambiente, reiniciando o serviço. O formulário e o resto do sistema não mudam.
+
 ## Variáveis de ambiente
 
 | Variável | Para quê |
@@ -143,10 +155,12 @@ Em qualquer uma, defina as mesmas variáveis do `.env.example`.
 | `SECRET_KEY` | Assina a sessão. Use 32+ caracteres aleatórios. Com `COOKIE_SECURE=true`, o servidor se recusa a subir sem uma chave assim. |
 | `COOKIE_SECURE` | `true` em produção (HTTPS). |
 | `JWT_EXPIRE_HOURS` | Duração da sessão, em horas (padrão 12). |
-| `ANTHROPIC_API_KEY` | Chave da API da Anthropic. Sem ela, a leitura com IA mostra um aviso e o resto do sistema funciona normalmente. |
-| `ANTHROPIC_MODEL` | Modelo usado na leitura (padrão `claude-sonnet-5-5`). |
+| `IA_PROVEDOR` | `gemini` (padrão) ou `anthropic`. |
+| `GEMINI_API_KEY` | Chave do Google Gemini (veja a seção 6). Sem chave, a leitura com IA mostra um aviso e o resto do sistema funciona normalmente. |
+| `GEMINI_MODEL` | Modelo do Gemini (padrão `gemini-2.5-flash`). Se o Google aposentar esse modelo, troque pelo "Flash" atual listado no AI Studio. |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Só com `IA_PROVEDOR=anthropic`: chave e modelo do Claude (padrão `claude-sonnet-5-5`). |
 | `IA_MAX_MB` | Tamanho máximo do arquivo enviado à IA (padrão 20). |
-| `IA_PRECO_ENTRADA_MTOK` / `IA_PRECO_SAIDA_MTOK` | US$ por milhão de tokens, só para a **estimativa** de custo no Admin. Ajuste conforme a tabela de preços da Anthropic. |
+| `IA_PRECO_ENTRADA_MTOK` / `IA_PRECO_SAIDA_MTOK` | US$ por milhão de tokens, só para a **estimativa** de custo no Admin. Vazio = 0 no Gemini e 2 / 10 no Claude Sonnet 5.5. |
 | `CORS_ORIGINS` | Só é necessário se o site ficar em outro domínio que não o da API. |
 
 ## Como funciona

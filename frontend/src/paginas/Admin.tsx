@@ -283,6 +283,7 @@ interface LinhaUso {
 interface ResumoUso {
   de: string
   ate: string
+  provedor: 'gemini' | 'anthropic'
   modelo: string
   preco_entrada_mtok: number
   preco_saida_mtok: number
@@ -384,8 +385,11 @@ function UsoIA() {
           <TabelaUso titulo="Por unidade" linhas={dados.por_unidade} />
           <TabelaUso titulo="Por usuário" linhas={dados.por_usuario} />
           <p className="fraco">
-            Modelo: {dados.modelo}. Estimativa com US$ {dados.preco_entrada_mtok} por milhão de tokens de entrada e US$ {dados.preco_saida_mtok} por milhão de saída
-            (ajuste em IA_PRECO_ENTRADA_MTOK e IA_PRECO_SAIDA_MTOK). Confira o valor real no painel da Anthropic.
+            IA: {dados.provedor === 'gemini' ? 'Google Gemini' : 'Anthropic (Claude)'} · modelo {dados.modelo}. Estimativa com US$ {dados.preco_entrada_mtok} por milhão de
+            tokens de entrada e US$ {dados.preco_saida_mtok} por milhão de saída (ajuste em IA_PRECO_ENTRADA_MTOK e IA_PRECO_SAIDA_MTOK).{' '}
+            {dados.provedor === 'gemini'
+              ? 'Na camada gratuita do Gemini o custo é zero, mas há limite de leituras por minuto e por dia.'
+              : 'Confira o valor real no painel da Anthropic.'}
           </p>
         </>
       )}

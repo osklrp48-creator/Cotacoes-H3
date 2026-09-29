@@ -15,10 +15,12 @@ services:
         generateValue: true
       - key: COOKIE_SECURE
         value: "true"
-      - key: ANTHROPIC_API_KEY
+      - key: IA_PROVEDOR
+        value: gemini
+      - key: GEMINI_API_KEY
         sync: false
-      - key: ANTHROPIC_MODEL
-        value: claude-sonnet-5-5
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
 
 databases:
   - name: cotacoes-h3-db

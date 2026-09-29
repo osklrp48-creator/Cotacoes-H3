@@ -33,13 +33,13 @@ def ler_cotacao(
     except extracao.ArquivoInvalido as exc:
         raise HTTPException(422, str(exc)) from exc
 
-    def registrar_uso(entrada: int, saida: int, sucesso: bool) -> None:
+    def registrar_uso(entrada: int, saida: int, sucesso: bool, modelo: str = "") -> None:
         db.add(
             UsoIA(
                 usuario_id=usuario.id,
                 unidade_id=usuario.unidade_id,
                 tipo_entrada=conteudo.tipo,
-                modelo=get_settings().anthropic_model,
+                modelo=modelo or leitor.modelo_atual(),
                 tokens_entrada=entrada,
                 tokens_saida=saida,
                 sucesso=sucesso,
@@ -54,5 +54,5 @@ def ler_cotacao(
             registrar_uso(getattr(exc, "tokens_entrada", 0), getattr(exc, "tokens_saida", 0), False)
         raise HTTPException(exc.status, str(exc)) from exc
 
-    registrar_uso(resultado.tokens_entrada, resultado.tokens_saida, True)
+    registrar_uso(resultado.tokens_entrada, resultado.tokens_saida, True, resultado.modelo)
     return resultado.dados

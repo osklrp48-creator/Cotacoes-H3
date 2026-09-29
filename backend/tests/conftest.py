@@ -3,7 +3,9 @@ import os
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://h3:h3@localhost:5432/cotacoes_test"
 )
+os.environ["IA_PROVEDOR"] = "anthropic"  # os testes do Gemini trocam o provedor explicitamente
 os.environ["ANTHROPIC_API_KEY"] = "chave-de-teste"
+os.environ["GEMINI_API_KEY"] = "chave-gemini-de-teste"
 os.environ["SECRET_KEY"] = "chave-secreta-de-teste-com-mais-de-32-bytes"
 os.environ["FRONTEND_DIST"] = ""
 
