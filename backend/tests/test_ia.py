@@ -68,7 +68,8 @@ def test_texto_colado(cliente, ia_falsa, db):
 
     chamada = ia_falsa.chamadas[0]
     assert chamada["model"] == "claude-sonnet-5-5"
-    assert chamada["tool_choice"] == {"type": "tool", "name": "registrar_cotacao"}
+    assert chamada["tool_choice"] == {"type": "auto"}
+    assert chamada["tools"][0]["strict"] is True
     assert "26.643.172/0001-77" in chamada["system"]
     assert "Dipirona cx 12,34" in _blocos(ia_falsa)[0]["text"]
 
@@ -186,5 +187,5 @@ def test_resumo_uso_ia_admin(admin, cliente, ia_falsa):
     d = admin.get("/api/admin/uso-ia").json()
     assert d["total"]["leituras"] == 2
     assert d["total"]["tokens_entrada"] == 3000
-    assert d["total"]["custo_estimado_usd"] == round(3000 / 1e6 * 3 + 600 / 1e6 * 15, 4)
+    assert d["total"]["custo_estimado_usd"] == round(3000 / 1e6 * 2 + 600 / 1e6 * 10, 4)
     assert {u["nome"] for u in d["por_unidade"]} == {"Matriz", "Filial Norte"}

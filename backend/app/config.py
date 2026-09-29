@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5-5"
     ia_max_mb: int = 20
     # Preço em US$ por milhão de tokens, só para a estimativa de custo no painel admin.
-    ia_preco_entrada_mtok: float = 3.0
-    ia_preco_saida_mtok: float = 15.0
+    ia_preco_entrada_mtok: float = 2.0
+    ia_preco_saida_mtok: float = 10.0
 
     frontend_dist: str = ""  # pasta do build do frontend servida pelo FastAPI (produção)
 

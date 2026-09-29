@@ -44,6 +44,7 @@ _NUMERO = {"type": "number"}
 FERRAMENTA = {
     "name": NOME_FERRAMENTA,
     "description": "Registra os dados extraídos da cotação para pré-preencher o formulário.",
+    "strict": True,
     "input_schema": {
         "type": "object",
         "properties": {
@@ -71,6 +72,7 @@ FERRAMENTA = {
                         "valorUnit": _NUMERO,
                     },
                     "required": ["produto", "marca", "unidade", "qtd", "valorUnit"],
+                    "additionalProperties": False,
                 },
             },
         },
@@ -78,6 +80,7 @@ FERRAMENTA = {
             "fornecedor", "cnpj", "contato", "telefone", "email", "numero", "data",
             "pagamento", "entrega", "frete", "valorFrete", "obs", "itens",
         ],
+        "additionalProperties": False,
     },
 }
 
@@ -168,7 +171,8 @@ def ler_cotacao(blocos: list[dict]) -> ResultadoIA:
             max_tokens=16000,
             system=PROMPT_SISTEMA,
             tools=[FERRAMENTA],
-            tool_choice={"type": "tool", "name": NOME_FERRAMENTA},
+            # Os modelos atuais não aceitam tool_choice forçado; "auto" + instrução no prompt + strict.
+            tool_choice={"type": "auto"},
             messages=[
                 {
                     "role": "user",
