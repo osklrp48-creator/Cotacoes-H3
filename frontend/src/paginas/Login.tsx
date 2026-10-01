@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSessao } from '../auth'
+import LogoH3 from '../componentes/LogoH3'
 import { useTema } from '../tema'
 
 export default function Login() {
@@ -26,9 +27,9 @@ export default function Login() {
   return (
     <div className="login">
       <div className="cartao">
-        <div className="marca">
-          <span className="marca-logo">H3</span>
-          Cotações H3
+        <div className="marca marca-login">
+          <LogoH3 formato="empilhada" altura={84} />
+          <span className="marca-nome">Cotações</span>
         </div>
         <p className="fraco" style={{ textAlign: 'center', margin: 0 }}>
           H3 Pharma Comércio e Serviços Ltda.

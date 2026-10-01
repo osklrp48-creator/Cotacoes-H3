@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSessao } from '../auth'
 import { useTema } from '../tema'
+import LogoH3 from './LogoH3'
 import { Icone } from './ui'
 
 export default function Layout() {
@@ -10,9 +11,9 @@ export default function Layout() {
     <>
       <header className="topo">
         <div className="topo-linha">
-          <NavLink to="/" className="marca">
-            <span className="marca-logo">H3</span>
-            Cotações H3
+          <NavLink to="/" className="marca" aria-label="Cotações H3 — início">
+            <LogoH3 altura={34} />
+            <span className="marca-nome">Cotações</span>
           </NavLink>
           <nav className="abas" aria-label="Principal">
             <NavLink to="/" end>

@@ -132,16 +132,51 @@ h3 {
   white-space: nowrap;
 }
 
-.marca-logo {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--verde);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 800;
+.logo-h3 {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.logo-h3 img {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+.logo-h3 .logo-tema-escuro {
+  display: none;
+}
+
+:root[data-tema='escuro'] .logo-h3 .logo-tema-claro {
+  display: none;
+}
+
+:root[data-tema='escuro'] .logo-h3 .logo-tema-escuro {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) .logo-h3 .logo-tema-claro {
+    display: none;
+  }
+
+  :root:not([data-tema='claro']) .logo-h3 .logo-tema-escuro {
+    display: block;
+  }
+}
+
+.logo-horizontal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.marca-nome {
+  padding-left: 10px;
+  border-left: 1px solid var(--borda);
+  color: var(--texto-2);
+  font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .abas {
@@ -970,9 +1005,16 @@ details.mais[open] {
 }
 
 .login .marca {
+  flex-direction: column;
   justify-content: center;
-  font-size: 1.2rem;
+  gap: 6px;
   margin-bottom: 4px;
+}
+
+.login .marca-nome {
+  border-left: 0;
+  padding-left: 0;
+  font-size: 1.1rem;
 }
 
 .login form {
