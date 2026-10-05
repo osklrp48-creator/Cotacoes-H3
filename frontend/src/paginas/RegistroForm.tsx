@@ -9,6 +9,7 @@ import { casasDecimais, fmtDataHora, hoje, lerNumero, numeroParaCampo } from '..
 interface ItemForm {
   uid: string
   produto: string
+  descricao: string
   marca: string
   unidade_medida: string
   quantidade: string
@@ -45,8 +46,9 @@ const UNIDADES_SUGERIDAS = ['UN', 'CX', 'FR', 'AMP', 'PCT', 'CP', 'KG', 'G', 'L'
 
 let contador = 0
 const novoUid = () => `i${++contador}`
-const itemVazio = (): ItemForm => ({ uid: novoUid(), produto: '', marca: '', unidade_medida: '', quantidade: '', valor_unitario: '' })
-const itemPreenchido = (i: ItemForm) => !!(i.produto.trim() || i.marca.trim() || i.quantidade.trim() || i.valor_unitario.trim())
+const itemVazio = (): ItemForm => ({ uid: novoUid(), produto: '', descricao: '', marca: '', unidade_medida: '', quantidade: '', valor_unitario: '' })
+const itemPreenchido = (i: ItemForm) =>
+  !!(i.produto.trim() || i.descricao.trim() || i.marca.trim() || i.quantidade.trim() || i.valor_unitario.trim())
 
 function formVazio(unidadeId: number): Formulario {
   return {
@@ -76,6 +78,7 @@ function formDoRegistro(r: Registro): Formulario {
     itens: r.itens.map((i) => ({
       uid: novoUid(),
       produto: i.produto,
+      descricao: i.descricao ?? '',
       marca: i.marca ?? '',
       unidade_medida: i.unidade_medida,
       quantidade: numeroParaCampo(i.quantidade),
@@ -100,6 +103,7 @@ function montarCorpo(f: Formulario, admin: boolean): { corpo?: object; erro?: st
     if (Number.isNaN(qtd)) return { erro: `${rot}: quantidade inválida.` }
     itens.push({
       produto: i.produto.trim(),
+      descricao: i.descricao.trim() || null,
       marca: i.marca.trim() || null,
       unidade_medida: i.unidade_medida.trim().toUpperCase() || null,
       quantidade: qtd === null ? null : Math.round(qtd * 1000) / 1000,
@@ -218,12 +222,13 @@ export default function RegistroForm() {
       const item: ItemForm = {
         uid: novoUid(),
         produto: i.produto,
+        descricao: i.descricao ?? '',
         marca: i.marca,
         unidade_medida: i.unidade,
         quantidade: i.qtd > 0 ? numeroParaCampo(i.qtd) : '',
         valor_unitario: i.valorUnit > 0 ? numeroParaCampo(i.valorUnit) : '',
       }
-      for (const c of ['produto', 'marca', 'unidade_medida', 'quantidade', 'valor_unitario'] as CampoItem[]) {
+      for (const c of ['produto', 'descricao', 'marca', 'unidade_medida', 'quantidade', 'valor_unitario'] as CampoItem[]) {
         if (item[c]) marcados.add(`${item.uid}.${c}`)
       }
       return item
@@ -450,6 +455,21 @@ export default function RegistroForm() {
                 </button>
               ) : (
                 <span />
+              )}
+              {(!travado || i.descricao) && (
+                <label className="campo item-descricao">
+                  <span>
+                    Descrição <span className="dica">(opcional)</span>
+                  </span>
+                  <input
+                    value={i.descricao}
+                    onChange={(e) => mudarItem(i.uid, 'descricao', e.target.value)}
+                    disabled={travado}
+                    className={cls(`${i.uid}.descricao`)}
+                    maxLength={2000}
+                    placeholder="Ex.: caixa com 10 comprimidos, apresentação, especificação técnica"
+                  />
+                </label>
               )}
             </div>
           ))}

@@ -89,7 +89,7 @@ class Registro(Base):
     valor_frete: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     referencia_interna: Mapped[str | None] = mapped_column(String(120))
     observacoes: Mapped[str | None] = mapped_column(Text)
-    # Texto normalizado (fornecedor + produtos + marcas) usado na busca.
+    # Texto normalizado (fornecedor + produtos + descrições + marcas) usado na busca.
     busca: Mapped[str] = mapped_column(Text, default="", server_default="")
     # Identificador de origem para a importação não duplicar registros se for rodada de novo.
     importacao_ref: Mapped[str | None] = mapped_column(String(120), unique=True)
@@ -114,6 +114,7 @@ class Item(Base):
     produto: Mapped[str] = mapped_column(String(300))
     produto_normalizado: Mapped[str] = mapped_column(String(300), index=True)
     marca: Mapped[str | None] = mapped_column(String(120))
+    descricao: Mapped[str | None] = mapped_column(Text)
     unidade_medida: Mapped[str] = mapped_column(String(20), default="", server_default="")
     quantidade: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
     valor_unitario: Mapped[Decimal] = mapped_column(Numeric(14, 4))

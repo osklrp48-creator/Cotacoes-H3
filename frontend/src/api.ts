@@ -19,6 +19,7 @@ export interface Usuario {
 export interface Item {
   id?: number
   produto: string
+  descricao: string | null
   marca: string | null
   unidade_medida: string
   quantidade: number | null
@@ -85,6 +86,7 @@ export interface ValorProduto {
   fornecedor: string
   fornecedor_id: number | null
   produto: string
+  descricao: string | null
   marca: string | null
   quantidade: number | null
   valor: number
@@ -119,6 +121,7 @@ export interface ValorFornecedor {
   status: Status
   unidade: string
   produto: string
+  descricao: string | null
   marca: string | null
   unidade_medida: string
   quantidade: number | null
@@ -143,7 +146,7 @@ export interface LeituraIA {
   frete: 'CIF' | 'FOB' | ''
   valorFrete: number
   obs: string
-  itens: { produto: string; marca: string; unidade: string; qtd: number; valorUnit: number }[]
+  itens: { produto: string; descricao?: string; marca: string; unidade: string; qtd: number; valorUnit: number }[]
 }
 
 export class ErroApi extends Error {

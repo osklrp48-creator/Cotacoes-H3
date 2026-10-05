@@ -59,6 +59,7 @@ def aplicar_dados(db: Session, registro: Registro, dados: RegistroIn) -> None:
             produto=i.produto,
             produto_normalizado=normalizar(i.produto),
             marca=i.marca,
+            descricao=i.descricao,
             unidade_medida=normalizar_unidade(i.unidade_medida),
             quantidade=i.quantidade,
             valor_unitario=i.valor_unitario,

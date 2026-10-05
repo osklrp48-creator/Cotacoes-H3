@@ -80,3 +80,27 @@ def test_admin_escolhe_unidade(admin, unidades):
     _, filial = unidades
     r = admin.post("/api/registros", json=novo_registro(unidade_id=filial.id))
     assert r.json()["unidade"]["id"] == filial.id
+
+
+def test_descricao_do_item_opcional(cliente):
+    itens = [
+        {"produto": "Dipirona 500mg", "descricao": "Caixa com 10 comprimidos, uso adulto", "valor_unitario": 12.5},
+        {"produto": "Gaze", "valor_unitario": 1},
+    ]
+    d = cliente.post("/api/registros", json=novo_registro(itens=itens)).json()
+    assert d["itens"][0]["descricao"] == "Caixa com 10 comprimidos, uso adulto"
+    assert d["itens"][1]["descricao"] is None
+    # A busca também encontra pela descrição.
+    assert cliente.get("/api/registros", params={"busca": "uso adulto"}).json()["total"] == 1
+    # Descrição só com espaços vira vazia.
+    r = cliente.put(f"/api/registros/{d['id']}", json=novo_registro(itens=[{"produto": "Gaze", "descricao": "   ", "valor_unitario": 1}]))
+    assert r.json()["itens"][0]["descricao"] is None
+
+
+def test_descricao_aparece_no_produto_e_no_fornecedor(cliente):
+    cliente.post("/api/registros", json=novo_registro(
+        fornecedor="Alfa", itens=[{"produto": "Seringa 5ml", "descricao": "Bico luer lock", "unidade_medida": "UN", "valor_unitario": 0.5}]))
+    detalhe = cliente.get("/api/produtos/detalhe", params={"nome": "seringa 5ml", "un": "UN"}).json()
+    assert detalhe["valores"][0]["descricao"] == "Bico luer lock"
+    fid = cliente.get("/api/fornecedores").json()[0]["id"]
+    assert cliente.get(f"/api/fornecedores/{fid}").json()["valores"][0]["descricao"] == "Bico luer lock"

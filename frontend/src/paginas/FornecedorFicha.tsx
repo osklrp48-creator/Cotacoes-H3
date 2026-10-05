@@ -224,7 +224,10 @@ export default function FornecedorFicha() {
                         {fmtData(v.data)}
                         {v.numero && <div className="fraco">nº {v.numero}</div>}
                       </td>
-                      <td className="principal">{v.produto}</td>
+                      <td className="principal">
+                        {v.produto}
+                        {v.descricao && <div className="fraco">{v.descricao}</div>}
+                      </td>
                       <td data-rotulo="Marca">{v.marca || '—'}</td>
                       <td data-rotulo="Unid.">{v.unidade_medida || '—'}</td>
                       <td data-rotulo="Qtd." className="num">

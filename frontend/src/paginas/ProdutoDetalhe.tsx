@@ -208,7 +208,7 @@ export default function ProdutoDetalhe() {
                 <th className="num">Dif.</th>
                 <th>Quem passou</th>
                 <th>Data</th>
-                <th>Marca</th>
+                <th>Marca / descrição</th>
                 <th className="num">Qtd.</th>
                 <th>Unidade H3</th>
                 <th />
@@ -227,7 +227,10 @@ export default function ProdutoDetalhe() {
                     <span className={v.fornecedor === 'Não informado' ? 'nao-informado' : ''}>{v.fornecedor}</span>
                   </td>
                   <td data-rotulo="Data">{fmtData(v.data)}</td>
-                  <td data-rotulo="Marca">{v.marca || '—'}</td>
+                  <td data-rotulo="Marca / descrição">
+                    {v.marca || (!v.descricao && '—')}
+                    {v.descricao && <div className="fraco">{v.descricao}</div>}
+                  </td>
                   <td data-rotulo="Qtd." className="num">
                     {fmtNumero(v.quantidade) || '—'}
                   </td>

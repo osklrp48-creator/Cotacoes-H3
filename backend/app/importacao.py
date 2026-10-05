@@ -39,7 +39,8 @@ ALIASES = {
     "id": ("id", "_id", "uuid"),
 }
 ALIASES_ITEM = {
-    "produto": ("produto", "descricao", "nome"),
+    "produto": ("produto", "nome"),
+    "descricao": ("descricao", "descrição", "detalhes", "especificacao"),
     "marca": ("marca", "fabricante"),
     "unidade": ("unidade", "un", "unidadeMedida", "unidade_medida"),
     "qtd": ("qtd", "quantidade", "qtde"),
@@ -158,6 +159,10 @@ def converter_cotacao(c: dict, avisos: list[str], rotulo: str) -> dict | None:
         if not isinstance(i, dict):
             continue
         produto = _texto(_pegar(i, ALIASES_ITEM["produto"]))
+        descricao = _texto(_pegar(i, ALIASES_ITEM["descricao"]))
+        if not produto and descricao:
+            # Exportações antigas que só têm "descricao": ela é o nome do produto.
+            produto, descricao = descricao, None
         valor = _numero(_pegar(i, ALIASES_ITEM["valorUnit"]), 4)
         if not produto or valor is None:
             avisos.append(f"{rotulo}, item {n}: sem produto ou valor unitário, item ignorado.")
@@ -165,6 +170,7 @@ def converter_cotacao(c: dict, avisos: list[str], rotulo: str) -> dict | None:
         itens.append(
             {
                 "produto": produto,
+                "descricao": descricao,
                 "marca": _texto(_pegar(i, ALIASES_ITEM["marca"])),
                 "unidade_medida": _texto(_pegar(i, ALIASES_ITEM["unidade"])),
                 "quantidade": _numero(_pegar(i, ALIASES_ITEM["qtd"]), 3),

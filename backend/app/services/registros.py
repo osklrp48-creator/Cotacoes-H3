@@ -12,6 +12,7 @@ def atualizar_busca(registro: Registro) -> None:
     for item in registro.itens:
         partes.append(item.produto)
         partes.append(item.marca or "")
+        partes.append(item.descricao or "")
     registro.busca = normalizar(" ".join(p for p in partes if p))
 
 

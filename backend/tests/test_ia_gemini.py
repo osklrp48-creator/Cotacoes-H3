@@ -67,7 +67,7 @@ def test_texto_com_gemini(cliente, falso, db):
     d = r.json()
     assert d["fornecedor"] == "João (WhatsApp)"
     assert d["frete"] == "FOB"
-    assert d["itens"] == [{"produto": "Luva M", "marca": "Supermax", "unidade": "CX", "qtd": 3.0, "valorUnit": 24.5}]
+    assert d["itens"] == [{"produto": "Luva M", "descricao": "", "marca": "Supermax", "unidade": "CX", "qtd": 3.0, "valorUnit": 24.5}]
 
     chamada = falso.chamadas[0]
     assert chamada["model"] == "gemini-flash-latest"

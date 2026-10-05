@@ -21,7 +21,7 @@ INSTRUCOES = PROMPT_SISTEMA.replace(
     "Responda SEMPRE com um único objeto JSON, sem texto antes ou depois, com exatamente estas chaves: "
     '{"fornecedor": "", "cnpj": "", "contato": "", "telefone": "", "email": "", "numero": "", "data": "", '
     '"pagamento": "", "entrega": "", "frete": "", "valorFrete": 0, "obs": "", '
-    '"itens": [{"produto": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0}]}. '
+    '"itens": [{"produto": "", "descricao": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0}]}. '
     "Números como número JSON (ponto decimal), textos como string.",
 )
 

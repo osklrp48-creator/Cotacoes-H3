@@ -161,7 +161,7 @@ def _erro_api(exc: errors.APIError) -> IAIndisponivel:
 CAMPOS_SEM_SCHEMA = (
     "\n\nFormato da resposta: um único objeto JSON com exatamente estas chaves: "
     + json.dumps({k: 0 if k == "valorFrete" else "" for k in SCHEMA["properties"] if k != "itens"}, ensure_ascii=False)[:-1]
-    + ', "itens": [{"produto": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0}]}. '
+    + ', "itens": [{"produto": "", "descricao": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0}]}. '
     "Números como número JSON (ponto decimal), textos como string."
 )
 

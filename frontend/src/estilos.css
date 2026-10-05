@@ -687,6 +687,10 @@ table.tabela {
   border-bottom: 1px dashed var(--borda);
 }
 
+.item-linha .item-descricao {
+  grid-column: 1 / -2;
+}
+
 .item-linha:last-of-type {
   border-bottom: 0;
 }
@@ -702,7 +706,8 @@ table.tabela {
     padding-top: 30px;
   }
 
-  .item-linha .item-produto {
+  .item-linha .item-produto,
+  .item-linha .item-descricao {
     grid-column: 1 / -1;
   }
 

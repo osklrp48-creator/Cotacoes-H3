@@ -36,7 +36,10 @@ seu nome, CNPJ, endereço ou contatos como dados do fornecedor.
 7. data: data da cotação/recebimento no formato AAAA-MM-DD; se não houver, use "".
 8. frete: "CIF" (frete pago pelo fornecedor/incluso) ou "FOB" (pago pelo comprador); se não estiver claro, "".
 9. unidade: unidade de medida abreviada em maiúsculas (UN, CX, FR, PCT, KG, L, AMP, CP, ...).
-10. obs: só observações relevantes da cotação (validade, condições especiais); sem repetir outros campos."""
+10. obs: só observações relevantes da cotação (validade, condições especiais); sem repetir outros campos.
+11. produto: nome curto do produto (ex.: "Dipirona 500mg"). descricao: detalhes que aparecem na cotação \
+além do nome, como apresentação, embalagem, concentração, especificação ou código (ex.: "Caixa com 10 \
+comprimidos, registro MS ..."); se não houver detalhes, use "". Não repita a marca nem a unidade na descrição."""
 
 _TEXTO = {"type": "string"}
 _NUMERO = {"type": "number"}
@@ -66,12 +69,13 @@ FERRAMENTA = {
                     "type": "object",
                     "properties": {
                         "produto": _TEXTO,
+                        "descricao": {**_TEXTO, "description": "Detalhes do produto além do nome, ou vazio"},
                         "marca": _TEXTO,
                         "unidade": _TEXTO,
                         "qtd": _NUMERO,
                         "valorUnit": _NUMERO,
                     },
-                    "required": ["produto", "marca", "unidade", "qtd", "valorUnit"],
+                    "required": ["produto", "descricao", "marca", "unidade", "qtd", "valorUnit"],
                     "additionalProperties": False,
                 },
             },
@@ -153,6 +157,7 @@ def normalizar_resposta(bruto: dict) -> dict:
         itens.append(
             {
                 "produto": produto,
+                "descricao": _texto(item.get("descricao")),
                 "marca": _texto(item.get("marca")),
                 "unidade": _texto(item.get("unidade")).upper(),
                 "qtd": _numero(item.get("qtd")),

@@ -22,7 +22,7 @@ RESPOSTA_IA = {
     "valorFrete": "1.234,50",
     "obs": "",
     "itens": [
-        {"produto": "Dipirona 500mg", "marca": "EMS", "unidade": "cx", "qtd": 10, "valorUnit": 12.34567},
+        {"produto": "Dipirona 500mg", "descricao": "Caixa com 10 comprimidos", "marca": "EMS", "unidade": "cx", "qtd": 10, "valorUnit": 12.34567},
         {"produto": "", "marca": "", "unidade": "", "qtd": 0, "valorUnit": 0},
     ],
 }
@@ -64,13 +64,15 @@ def test_texto_colado(cliente, ia_falsa, db):
     assert d["fornecedor"] == "Distribuidora Alfa"
     assert d["frete"] == "CIF"
     assert d["valorFrete"] == 1234.5
-    assert d["itens"] == [{"produto": "Dipirona 500mg", "marca": "EMS", "unidade": "CX", "qtd": 10.0, "valorUnit": 12.3457}]
+    assert d["itens"] == [{"produto": "Dipirona 500mg", "descricao": "Caixa com 10 comprimidos", "marca": "EMS", "unidade": "CX", "qtd": 10.0, "valorUnit": 12.3457}]
 
     chamada = ia_falsa.chamadas[0]
     assert chamada["model"] == "claude-sonnet-5-5"
     assert chamada["tool_choice"] == {"type": "auto"}
     assert chamada["tools"][0]["strict"] is True
     assert "26.643.172/0001-77" in chamada["system"]
+    item_schema = chamada["tools"][0]["input_schema"]["properties"]["itens"]["items"]
+    assert "descricao" in item_schema["properties"] and "descricao" in item_schema["required"]
     assert "Dipirona cx 12,34" in _blocos(ia_falsa)[0]["text"]
 
     uso = db.query(UsoIA).one()
