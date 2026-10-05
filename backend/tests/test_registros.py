@@ -104,3 +104,10 @@ def test_descricao_aparece_no_produto_e_no_fornecedor(cliente):
     assert detalhe["valores"][0]["descricao"] == "Bico luer lock"
     fid = cliente.get("/api/fornecedores").json()[0]["id"]
     assert cliente.get(f"/api/fornecedores/{fid}").json()["valores"][0]["descricao"] == "Bico luer lock"
+
+
+def test_descricao_ate_4000_caracteres(cliente):
+    ok = cliente.post("/api/registros", json=novo_registro(itens=[{"produto": "Gaze", "descricao": "x" * 4000, "valor_unitario": 1}]))
+    assert ok.status_code == 201 and len(ok.json()["itens"][0]["descricao"]) == 4000
+    longa = cliente.post("/api/registros", json=novo_registro(itens=[{"produto": "Gaze", "descricao": "x" * 4001, "valor_unitario": 1}]))
+    assert longa.status_code == 422 and "muito longo" in longa.json()["detail"]

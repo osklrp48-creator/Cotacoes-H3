@@ -691,6 +691,11 @@ table.tabela {
   grid-column: 1 / -2;
 }
 
+.item-linha .item-descricao textarea {
+  min-height: 38px;
+  line-height: 1.4;
+}
+
 .item-linha:last-of-type {
   border-bottom: 0;
 }

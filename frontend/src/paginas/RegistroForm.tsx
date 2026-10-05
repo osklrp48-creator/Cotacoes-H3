@@ -44,6 +44,8 @@ const DETALHES: CampoTexto[] = [
 ]
 const UNIDADES_SUGERIDAS = ['UN', 'CX', 'FR', 'AMP', 'PCT', 'CP', 'KG', 'G', 'L', 'ML', 'RL', 'GL', 'TB', 'BIS', 'PAR']
 
+const LIMITE_DESCRICAO = 4000
+
 let contador = 0
 const novoUid = () => `i${++contador}`
 const itemVazio = (): ItemForm => ({ uid: novoUid(), produto: '', descricao: '', marca: '', unidade_medida: '', quantidade: '', valor_unitario: '' })
@@ -461,14 +463,20 @@ export default function RegistroForm() {
                   <span>
                     Descrição <span className="dica">(opcional)</span>
                   </span>
-                  <input
+                  <textarea
                     value={i.descricao}
                     onChange={(e) => mudarItem(i.uid, 'descricao', e.target.value)}
                     disabled={travado}
                     className={cls(`${i.uid}.descricao`)}
-                    maxLength={2000}
+                    maxLength={LIMITE_DESCRICAO}
+                    rows={Math.min(8, Math.max(1, Math.ceil(i.descricao.length / 110), i.descricao.split('\n').length))}
                     placeholder="Ex.: caixa com 10 comprimidos, apresentação, especificação técnica"
                   />
+                  {!travado && i.descricao.length > LIMITE_DESCRICAO - 400 && (
+                    <span className="dica">
+                      {i.descricao.length.toLocaleString('pt-BR')} de {LIMITE_DESCRICAO.toLocaleString('pt-BR')} caracteres
+                    </span>
+                  )}
                 </label>
               )}
             </div>

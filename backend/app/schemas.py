@@ -82,7 +82,7 @@ class TextoOpcional(BaseModel):
 class ItemIn(TextoOpcional):
     produto: str = Field(max_length=300)
     marca: str | None = Field(default=None, max_length=120)
-    descricao: str | None = Field(default=None, max_length=2000)
+    descricao: str | None = Field(default=None, max_length=4000)
     unidade_medida: str | None = Field(default=None, max_length=20)
     quantidade: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=3)
     valor_unitario: Decimal = Field(ge=0, max_digits=14, decimal_places=4)
