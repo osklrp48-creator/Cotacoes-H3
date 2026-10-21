@@ -43,3 +43,11 @@ def test_usuario_desativado_nao_entra(admin, usuarios, anonimo):
     assert admin.put(f"/api/usuarios/{comum.id}", json={"ativo": False}).status_code == 200
     r = anonimo.post("/api/auth/login", json={"email": "bruno@h3.com.br", "senha": "senha12345"})
     assert r.status_code == 403
+
+
+def test_respostas_grandes_vao_comprimidas(cliente):
+    for n in range(40):
+        cliente.post("/api/registros", json={"data_recebimento": "2026-09-10", "fornecedor": f"Fornecedor {n}",
+                                             "itens": [{"produto": f"Produto {n}", "valor_unitario": 1}]})
+    r = cliente.get("/api/registros", headers={"Accept-Encoding": "gzip"})
+    assert r.status_code == 200 and r.headers.get("content-encoding") == "gzip"

@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -59,6 +60,9 @@ def criar_app() -> FastAPI:
         raise RuntimeError("Defina SECRET_KEY com pelo menos 32 caracteres aleatórios antes de rodar em produção.")
     app = FastAPI(title="Cotações H3", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
+    # Comprime respostas (JS, CSS, SVG e JSON das listas): bem menos dados por acesso.
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+
     if s.cors_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -85,14 +89,25 @@ def criar_app() -> FastAPI:
         if (dist / "assets").exists():
             app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
 
+        @app.middleware("http")
+        async def _cache_assets(request: Request, call_next):
+            resposta = await call_next(request)
+            # Arquivos de /assets têm um código no nome que muda a cada versão: o navegador pode guardá-los
+            # por 1 ano sem perguntar de novo ao servidor.
+            if request.url.path.startswith("/assets/") and resposta.status_code == 200:
+                resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resposta
+
         @app.get("/{caminho:path}", include_in_schema=False)
         def spa(caminho: str):
             if caminho.startswith("api/"):
                 return JSONResponse(status_code=404, content={"detail": "Rota não encontrada."})
             arquivo = (dist / caminho).resolve()
             if caminho and arquivo.is_file() and dist.resolve() in arquivo.parents:
-                return FileResponse(arquivo)
-            return FileResponse(dist / "index.html")
+                # Logos e ícone: guardados por 1 dia.
+                return FileResponse(arquivo, headers={"Cache-Control": "public, max-age=86400"})
+            # A página principal sempre é conferida, para pegar a versão nova logo após uma publicação.
+            return FileResponse(dist / "index.html", headers={"Cache-Control": "no-cache"})
 
     return app
 
